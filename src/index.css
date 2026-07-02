@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: #F2F2F7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hide scrollbar for cleaner iOS look */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+@keyframes flyAway {
+  0% {
+    transform: scale(1) translateX(0) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8) translateX(100px) translateY(-100px);
+    opacity: 0;
+  }
+}
+
+.animate-fly-away {
+  animation: flyAway 0.5s ease-out forwards;
+}
+
+@keyframes greenFill {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes checkScale {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-green-fill {
+  animation: greenFill 0.3s ease-out forwards;
+}
+
+.animate-check-scale {
+  animation: checkScale 0.3s ease-out forwards;
+}
+
+@plugin "@tailwindcss/typography";
