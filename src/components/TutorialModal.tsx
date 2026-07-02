@@ -9,15 +9,20 @@ interface TutorialModalProps {
   onClose: () => void;
   title: string;
   content: string;
+  imageData?: string;
+  imageDataList?: string[];
   isLoading: boolean;
 }
 
-export default function TutorialModal({ isOpen, onClose, title, content, isLoading }: TutorialModalProps) {
+export default function TutorialModal({ isOpen, onClose, title, content, imageData, imageDataList, isLoading }: TutorialModalProps) {
   const { language, t } = useLanguage();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const images = imageDataList?.length ? imageDataList : imageData ? [imageData] : [];
 
   useEffect(() => {
     if (audioRef.current) {
@@ -30,6 +35,8 @@ export default function TutorialModal({ isOpen, onClose, title, content, isLoadi
     utteranceRef.current = null;
     setIsPlaying(false);
     setIsAudioLoading(false);
+    setIsImagePreviewOpen(false);
+    setPreviewIndex(0);
   }, [content, isOpen]);
 
   const toggleAudio = async () => {
@@ -91,8 +98,8 @@ export default function TutorialModal({ isOpen, onClose, title, content, isLoadi
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[80vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+    <div className="pwa-modal-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4 backdrop-blur-sm">
+      <div className="ios-modal-panel bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[80vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/5">
           <h2 className="text-xl font-bold tracking-tight text-black line-clamp-1">{title}</h2>
           <div className="flex items-center space-x-2">
@@ -115,19 +122,60 @@ export default function TutorialModal({ isOpen, onClose, title, content, isLoadi
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-6 pb-safe">
+        <div className="ios-modal-scroll flex-1 overflow-y-auto p-6 pb-safe">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-40 space-y-4">
               <div className="w-8 h-8 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin"></div>
               <p className="text-gray-500 font-medium">{t('generatingRecipe')}</p>
             </div>
           ) : (
-            <div className="prose prose-blue prose-sm max-w-none">
-              <ReactMarkdown>{content}</ReactMarkdown>
-            </div>
+            <>
+              {!!images.length && (
+                <div className="mb-5 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewIndex(0);
+                      setIsImagePreviewOpen(true);
+                    }}
+                    className="block w-full overflow-hidden rounded-[24px] bg-[#F2F2F7] active:scale-[0.99] transition-transform"
+                  >
+                    <img src={images[0]} alt={title} className="h-56 w-full object-cover" />
+                  </button>
+                  {images.length > 1 && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {images.slice(1).map((image, index) => (
+                        <button
+                          type="button"
+                          key={`${image.slice(0, 24)}-${index}`}
+                          onClick={() => {
+                            setPreviewIndex(index + 1);
+                            setIsImagePreviewOpen(true);
+                          }}
+                          className="aspect-square overflow-hidden rounded-[14px] bg-[#F2F2F7]"
+                        >
+                          <img src={image} alt={`${title} ${index + 2}`} className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="prose prose-blue prose-sm max-w-none">
+                <ReactMarkdown>{content}</ReactMarkdown>
+              </div>
+            </>
           )}
         </div>
       </div>
+      {isImagePreviewOpen && images[previewIndex] && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setIsImagePreviewOpen(false)}>
+          <button type="button" className="absolute right-4 top-4 rounded-full bg-white/15 p-3 text-white" onClick={() => setIsImagePreviewOpen(false)}>
+            <X size={24} />
+          </button>
+          <img src={images[previewIndex]} alt={title} className="max-h-full max-w-full rounded-[20px] object-contain" />
+        </div>
+      )}
     </div>
   );
 }

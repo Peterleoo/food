@@ -21,6 +21,8 @@ export default function Home() {
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [tutorialTitle, setTutorialTitle] = useState('');
   const [tutorialContent, setTutorialContent] = useState('');
+  const [tutorialImage, setTutorialImage] = useState<string | undefined>();
+  const [tutorialImages, setTutorialImages] = useState<string[]>([]);
   const [isTutorialLoading, setIsTutorialLoading] = useState(false);
 
   const todaysMeals = useLiveQuery(
@@ -32,23 +34,24 @@ export default function Home() {
     setIsGenerating(true);
     setError(null);
     try {
-      const newMeals = await generateDailyPlan(today, language);
+      const newMeals = await generateDailyPlan(today, language, Date.now());
       if (newMeals && newMeals.length > 0) {
-        // Clear existing pending meals for today
         const existing = await db.mealHistory.where('date').equals(today).toArray();
-        const pendingIds = existing.filter(m => m.status === 'pending').map(m => m.id!);
-        if (pendingIds.length > 0) {
-          await db.mealHistory.bulkDelete(pendingIds);
+        const existingIds = existing.map(m => m.id!);
+        if (existingIds.length > 0) {
+          await db.mealHistory.bulkDelete(existingIds);
         }
 
-        // Add new meals
         await db.mealHistory.bulkAdd(
           newMeals.map((m: any) => ({
             date: today,
             mealType: m.mealType,
             dishName: m.dishName,
             status: 'pending',
-            ingredients: m.ingredients
+            ingredients: m.ingredients || [],
+            tutorial: m.tutorial,
+            imageData: m.imageData,
+            imageDataList: m.imageDataList
           }))
         );
       } else {
@@ -71,7 +74,9 @@ export default function Home() {
           dishName: newMeal.dishName,
           ingredients: newMeal.ingredients,
           status: 'pending',
-          tutorial: undefined
+          tutorial: newMeal.tutorial,
+          imageData: newMeal.imageData,
+          imageDataList: newMeal.imageDataList
         });
       }
     } catch (e) {
@@ -94,8 +99,10 @@ export default function Home() {
     await db.mealHistory.update(id, { status });
   };
 
-  const openTutorial = async (dishName: string, ingredients: string[], existingTutorial?: string, id?: number) => {
+  const openTutorial = async (dishName: string, ingredients: string[], existingTutorial?: string, id?: number, imageData?: string, imageDataList?: string[]) => {
     setTutorialTitle(dishName);
+    setTutorialImage(imageData);
+    setTutorialImages(imageDataList || (imageData ? [imageData] : []));
     setIsTutorialOpen(true);
     
     if (existingTutorial) {
@@ -226,7 +233,7 @@ export default function Home() {
               
               <div className="flex items-center space-x-2 sm:flex-col sm:space-x-0 sm:space-y-2 shrink-0">
                 <button
-                  onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id)}
+                  onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
                   className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#F2F2F7] text-black px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-gray-200 transition-colors active:scale-95"
                 >
                   <ChefHat size={18} />
@@ -266,6 +273,8 @@ export default function Home() {
         onClose={() => setIsTutorialOpen(false)}
         title={tutorialTitle}
         content={tutorialContent}
+        imageData={tutorialImage}
+        imageDataList={tutorialImages}
         isLoading={isTutorialLoading}
       />
     </div>

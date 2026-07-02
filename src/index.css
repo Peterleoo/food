@@ -10,6 +10,47 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+input,
+textarea,
+select {
+  font-size: 16px;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-modal-panel {
+  isolation: isolate;
+}
+
+.ios-modal-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+@media all and (display-mode: standalone) {
+  body {
+    min-height: 100dvh;
+  }
+
+  .app-main {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+  }
+}
+
 /* Hide scrollbar for cleaner iOS look */
 ::-webkit-scrollbar {
   width: 0px;

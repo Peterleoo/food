@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { db } from "../db";
+import { CustomRecipe, db } from "../db";
 import { findLocalRecipe, localRecipes, MealType } from "../data/localRecipes";
 
 interface AiSettings {
@@ -97,6 +97,51 @@ function pickLocalMeal(type: MealType, seed: number, likes: string[], dislikes: 
   return pool[seed % pool.length];
 }
 
+function buildCustomTutorial(recipe: CustomRecipe) {
+  const steps = (recipe.tutorial || '')
+    .split('\n')
+    .map(step => step.trim())
+    .filter(Boolean);
+  const nutritionTips = recipe.nutritionTips || recipe.tags || [];
+  const cautions = recipe.cautions || [];
+
+  return [
+    recipe.ingredients?.length ? `## 食材\n${recipe.ingredients.map(item => `- ${item}`).join('\n')}` : '',
+    steps.length ? `## 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+    nutritionTips.length ? `## 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+    cautions.length ? `## 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+function customRecipeToLocal(recipe: CustomRecipe, mealType: MealType) {
+  return {
+    mealType,
+    dishName: recipe.dishName,
+    ingredients: recipe.ingredients || [],
+    tutorial: buildCustomTutorial(recipe),
+    imageData: recipe.imageData || recipe.imageDataList?.[0],
+    imageDataList: recipe.imageDataList || (recipe.imageData ? [recipe.imageData] : [])
+  };
+}
+
+async function pickMeal(type: MealType, seed: number, likes: string[], dislikes: string[], allergies: string[], rejected: string[], eaten: string[], excluded: string[] = []) {
+  const customRecipes = await db.customRecipes
+    .filter(recipe => !recipe.mealType || recipe.mealType === 'any' || recipe.mealType === type)
+    .toArray();
+  const localPool = localRecipes[type];
+  const customPool = customRecipes.map(recipe => customRecipeToLocal(recipe, type));
+  const recipes = [...customPool, ...localPool].sort((a, b) => {
+    const scoreDiff = scoreRecipe(b, likes, dislikes, allergies, rejected, eaten) - scoreRecipe(a, likes, dislikes, allergies, rejected, eaten);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.dishName.localeCompare(b.dishName, 'zh-CN');
+  });
+  const viableRecipes = recipes.filter(recipe => scoreRecipe(recipe, likes, dislikes, allergies, rejected, eaten) > -1000);
+  const basePool = viableRecipes.length ? viableRecipes : recipes;
+  const uniquePool = basePool.filter(recipe => !excluded.includes(recipe.dishName));
+  const pool = uniquePool.length ? uniquePool : basePool;
+  return pool[seed % pool.length] || pickLocalMeal(type, seed, likes, dislikes, allergies, rejected, eaten);
+}
+
 async function getMealContext() {
   const prefs = await db.preferences.toArray();
   const likes = prefs.filter(p => p.type === 'like').map(p => p.item);
@@ -112,18 +157,27 @@ async function getMealContext() {
   return { likes, dislikes, allergies, rejected, eaten };
 }
 
-async function generateLocalDailyPlan(date: string) {
+async function generateLocalDailyPlan(date: string, refreshSeed = 0) {
   const { likes, dislikes, allergies, rejected, eaten } = await getMealContext();
-  const seedBase = date.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const seedBase = date.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) + refreshSeed;
 
-  return mealTypes.map((mealType, index) => {
-    const recipe = pickLocalMeal(mealType, seedBase + index, likes, dislikes, allergies, rejected, eaten);
-    return {
+  const usedDishNames: string[] = [];
+  const meals = [];
+
+  for (const [index, mealType] of mealTypes.entries()) {
+    const recipe = await pickMeal(mealType, seedBase + index, likes, dislikes, allergies, rejected, eaten, usedDishNames);
+    usedDishNames.push(recipe.dishName);
+    meals.push({
       mealType: recipe.mealType,
       dishName: recipe.dishName,
-      ingredients: recipe.ingredients
-    };
-  });
+      ingredients: recipe.ingredients,
+      tutorial: recipe.tutorial,
+      imageData: (recipe as any).imageData,
+      imageDataList: (recipe as any).imageDataList
+    });
+  }
+
+  return meals;
 }
 
 async function generateLocalSingleMeal(mealType: string, date: string) {
@@ -132,12 +186,15 @@ async function generateLocalSingleMeal(mealType: string, date: string) {
 
   const { likes, dislikes, allergies, rejected, eaten } = await getMealContext();
   const seed = date.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) + Date.now();
-  const recipe = pickLocalMeal(normalizedType, seed, likes, dislikes, allergies, rejected, eaten);
+  const recipe = await pickMeal(normalizedType, seed, likes, dislikes, allergies, rejected, eaten);
 
   return {
     mealType: recipe.mealType,
     dishName: recipe.dishName,
-    ingredients: recipe.ingredients
+    ingredients: recipe.ingredients,
+    tutorial: recipe.tutorial,
+    imageData: (recipe as any).imageData,
+    imageDataList: (recipe as any).imageDataList
   };
 }
 
@@ -185,7 +242,13 @@ export function getBabyProfile() {
     const data = localStorage.getItem('babyProfile');
     if (data) return JSON.parse(data);
   } catch (e) {}
-  return { age: 24, gender: 'boy' };
+  return { age: 24, gender: 'boy', targetGroup: 'infant', peopleCount: 1 };
+}
+
+function getTargetGroupLabel(targetGroup?: string) {
+  if (targetGroup === 'adult') return 'adult';
+  if (targetGroup === 'elderly') return 'elderly person';
+  return 'infant';
 }
 
 function getAgeString(months: number) {
@@ -197,9 +260,18 @@ function getAgeString(months: number) {
   return `${months} month old`;
 }
 
-export async function generateDailyPlan(date: string, language: 'zh' | 'en') {
+function getProfileDescription(profile: any) {
+  const peopleCount = profile.peopleCount || 1;
+  const target = getTargetGroupLabel(profile.targetGroup);
+  if (target === 'infant') {
+    return `${getAgeString(profile.age || 24)} infant (${profile.gender || 'boy'}), serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
+  }
+  return `${target}, serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
+}
+
+export async function generateDailyPlan(date: string, language: 'zh' | 'en', refreshSeed = 0) {
   if (!shouldUseAI()) {
-    return generateLocalDailyPlan(date);
+    return generateLocalDailyPlan(date, refreshSeed);
   }
 
   const prefs = await db.preferences.toArray();
@@ -216,10 +288,11 @@ export async function generateDailyPlan(date: string, language: 'zh' | 'en') {
 
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
-  const ageStr = getAgeString(profile.age);
+  const profileDescription = getProfileDescription(profile);
 
   const prompt = `
-Generate a healthy daily meal plan for a ${ageStr} toddler (${profile.gender}) for the date ${date}.
+Generate a healthy daily meal plan for ${profileDescription} for the date ${date}.
+Variation token: ${refreshSeed}. Use it to provide a meaningfully different set when regenerating.
 The toddler has the following preferences:
 - Likes: ${likes.join(', ') || 'None specified'}
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
@@ -229,7 +302,7 @@ Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
-- Meals must be healthy, low in sodium and sugar, soft enough for a ${ageStr} toddler, and nutritionally balanced.
+- Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
 - Provide 4 meals: breakfast, lunch, snack, dinner.
 - For each meal, provide a dish name and a list of main ingredients.
 - The response MUST be a valid JSON object matching the requested schema.
@@ -240,7 +313,7 @@ Requirements:
     if (getAiSettings().provider === 'qwen') {
       const content = await qwenChat(prompt, true);
       const data = JSON.parse(content || '{}');
-      return data.meals || generateLocalDailyPlan(date);
+      return data.meals || generateLocalDailyPlan(date, refreshSeed);
     }
 
     const response = await getAI().models.generateContent({
@@ -270,10 +343,10 @@ Requirements:
     });
 
     const data = JSON.parse(response.text || '{}');
-    return data.meals || generateLocalDailyPlan(date);
+    return data.meals || generateLocalDailyPlan(date, refreshSeed);
   } catch (e) {
     console.error("Failed to generate AI meal plan", e);
-    return generateLocalDailyPlan(date);
+    return generateLocalDailyPlan(date, refreshSeed);
   }
 }
 
@@ -295,10 +368,10 @@ export async function generateSingleMeal(date: string, mealType: string, languag
 
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
-  const ageStr = getAgeString(profile.age);
+  const profileDescription = getProfileDescription(profile);
 
   const prompt = `
-Generate a healthy ${mealType} for a ${ageStr} toddler (${profile.gender}) for the date ${date}.
+Generate a healthy ${mealType} for ${profileDescription} for the date ${date}.
 The toddler has the following preferences:
 - Likes: ${likes.join(', ') || 'None specified'}
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
@@ -308,7 +381,7 @@ Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
-- Meals must be healthy, low in sodium and sugar, soft enough for a ${ageStr} toddler, and nutritionally balanced.
+- Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
 - Provide a dish name and a list of main ingredients.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
@@ -389,15 +462,15 @@ export async function generateTutorial(dishName: string, ingredients: string[], 
 
   const langInstruction = language === 'zh' ? 'The tutorial MUST be written in Chinese (Simplified).' : 'The tutorial MUST be written in English.';
   const profile = getBabyProfile();
-  const ageStr = getAgeString(profile.age);
+  const profileDescription = getProfileDescription(profile);
 
   const prompt = `
-Provide a detailed, step-by-step cooking tutorial for a ${ageStr} toddler's meal: "${dishName}".
+Provide a detailed, step-by-step cooking tutorial for ${profileDescription}: "${dishName}".
 Main ingredients: ${ingredients.join(', ')}.
 
 Requirements:
 - The cooking method must be healthy (e.g., steaming, boiling, light sautéing).
-- Ensure the texture is appropriate for a ${ageStr} toddler (soft, easy to chew).
+- Ensure the texture is appropriate for the target people.
 - Mention any specific prep steps for toddlers (e.g., cutting grapes in half, removing bones).
 - Do not use added salt or sugar.
 - Format as Markdown.

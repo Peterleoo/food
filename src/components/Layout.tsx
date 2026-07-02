@@ -7,12 +7,12 @@ export default function Layout() {
   const { t } = useLanguage();
 
   return (
-    <div className="flex flex-col h-screen bg-[#F2F2F7] text-black font-sans selection:bg-blue-200">
-      <main className="flex-1 overflow-y-auto p-4 pb-32">
+    <div className="app-shell flex min-h-[100dvh] flex-col bg-[#F2F2F7] text-black font-sans selection:bg-blue-200">
+      <main className="app-main flex-1 overflow-y-auto p-4 pb-32">
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-4 left-1/2 z-30 flex h-[72px] w-[calc(100%-32px)] max-w-md -translate-x-1/2 items-center justify-around rounded-[28px] border border-white/80 bg-white/90 px-2 shadow-[0_16px_48px_rgba(0,0,0,0.14)] backdrop-blur-xl">
+      <nav className="app-bottom-nav fixed bottom-4 left-1/2 z-30 flex h-[72px] w-[calc(100%-32px)] max-w-md -translate-x-1/2 items-center justify-around rounded-[28px] border border-white/80 bg-white/90 px-2 shadow-[0_16px_48px_rgba(0,0,0,0.14)] backdrop-blur-xl">
         <NavLink
           to="/"
           className={({ isActive }) =>
