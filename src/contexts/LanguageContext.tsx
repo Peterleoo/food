@@ -10,7 +10,7 @@ interface Translations {
 }
 
 export const translations: Translations = {
-  appTitle: { zh: '宝宝辅食', en: 'ToddlerMeals' },
+  appTitle: { zh: '用户餐食', en: 'UserMeals' },
   navToday: { zh: '今日', en: 'Today' },
   navPreferences: { zh: '自定义', en: 'Custom' },
   navReports: { zh: '报告', en: 'Reports' },
@@ -21,7 +21,7 @@ export const translations: Translations = {
   generatePlan: { zh: '生成餐单', en: 'Generate Plan' },
   regenerate: { zh: '重新生成', en: 'Regenerate' },
   noMealsTitle: { zh: '暂无餐单', en: 'No meals planned yet' },
-  noMealsDesc: { zh: '生成一份专为您的宝宝定制的健康餐单。', en: "Generate a healthy meal plan tailored to your toddler's preferences." },
+  noMealsDesc: { zh: '生成一份专为用户定制的健康餐单。', en: "Generate a healthy meal plan tailored to the user's preferences." },
   createPlanBtn: { zh: '创建今日餐单', en: "Create Today's Plan" },
   recipe: { zh: '食谱', en: 'Recipe' },
   eaten: { zh: '已吃', en: 'Eaten' },
@@ -87,8 +87,8 @@ export const translations: Translations = {
   
   // Settings
   settingsTitle: { zh: '设置', en: 'Settings' },
-  settingsDesc: { zh: '管理宝宝的资料和应用偏好。', en: 'Manage baby profile and app preferences.' },
-  babyProfile: { zh: '宝宝资料', en: 'Baby Profile' },
+  settingsDesc: { zh: '管理用户资料和应用偏好。', en: 'Manage user profile and app preferences.' },
+  babyProfile: { zh: '用户资料', en: 'User Profile' },
   age: { zh: '年龄', en: 'Age' },
   months: { zh: '个月', en: 'months' },
   years: { zh: '岁', en: 'years' },

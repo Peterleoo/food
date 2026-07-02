@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../db';
-import { Baby, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Pencil, Plus, X } from 'lucide-react';
+import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Pencil, Plus, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export default function Settings() {
@@ -93,7 +93,7 @@ export default function Settings() {
 
       <div className="space-y-4 px-2">
         {[
-          { key: 'profile', title: t('babyProfile'), desc: profileSummary, icon: Baby, color: '#FF9500' },
+          { key: 'profile', title: t('babyProfile'), desc: profileSummary, icon: User, color: '#FF9500' },
           { key: 'preferences', title: t('prefTitle'), desc: `${t('likes')} ${prefCounts.like} · ${t('dislikes')} ${prefCounts.dislike} · ${t('allergies')} ${prefCounts.allergy}`, icon: Heart, color: '#34C759' },
           { key: 'app', title: t('appSettings'), desc: language === 'zh' ? '中文' : 'English', icon: Globe, color: '#34C759' },
           { key: 'ai', title: t('aiSettings'), desc: `${enableAiGeneration ? t('enabled') || 'Enabled' : t('pending')} · ${provider === 'google' ? t('google') : t('qwen')} · ${model}`, icon: Sparkles, color: '#007AFF' },

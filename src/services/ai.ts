@@ -11,6 +11,18 @@ interface AiSettings {
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
+type GeneratedMealInput = {
+  mealType?: string;
+  dishName?: string;
+  ingredients?: unknown;
+  steps?: unknown;
+  nutritionTips?: unknown;
+  cautions?: unknown;
+  tutorial?: string;
+  imageData?: string;
+  imageDataList?: string[];
+};
+
 function getAiSettings(): AiSettings {
   try {
     const saved = localStorage.getItem('aiSettings');
@@ -56,8 +68,8 @@ async function qwenChat(prompt: string, expectJson = false) {
         {
           role: 'system',
           content: expectJson
-            ? 'You are a toddler meal planning assistant. Return only valid JSON with no markdown.'
-            : 'You are a toddler meal planning assistant.'
+            ? 'You are a user meal planning assistant. Return only valid JSON with no markdown.'
+            : 'You are a user meal planning assistant.'
         },
         { role: 'user', content: prompt }
       ],
@@ -111,6 +123,69 @@ function buildCustomTutorial(recipe: CustomRecipe) {
     nutritionTips.length ? `## 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
     cautions.length ? `## 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
   ].filter(Boolean).join('\n\n');
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[\n,，;；]/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeMealType(value: unknown, fallback: MealType = 'breakfast') {
+  const normalized = String(value || '').toLowerCase() as MealType;
+  return mealTypes.includes(normalized) ? normalized : fallback;
+}
+
+function buildGeneratedTutorial(meal: GeneratedMealInput, language: 'zh' | 'en') {
+  if (meal.tutorial?.trim()) return meal.tutorial.trim();
+
+  const ingredients = toStringArray(meal.ingredients);
+  const steps = toStringArray(meal.steps);
+  const nutritionTips = toStringArray(meal.nutritionTips);
+  const cautions = toStringArray(meal.cautions);
+
+  if (language === 'zh') {
+    return [
+      ingredients.length ? `## 食材\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
+      steps.length ? `## 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+      nutritionTips.length ? `## 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+      cautions.length ? `## 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
+
+  return [
+    ingredients.length ? `## Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
+    steps.length ? `## Cooking steps\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+    nutritionTips.length ? `## Nutrition tips\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+    cautions.length ? `## Cautions\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+function normalizeGeneratedMeal(meal: GeneratedMealInput, language: 'zh' | 'en', fallbackMealType: MealType) {
+  const ingredients = toStringArray(meal.ingredients);
+  return {
+    mealType: normalizeMealType(meal.mealType, fallbackMealType),
+    dishName: String(meal.dishName || '').trim(),
+    ingredients,
+    tutorial: buildGeneratedTutorial(meal, language),
+    imageData: meal.imageData,
+    imageDataList: meal.imageDataList
+  };
+}
+
+function normalizeGeneratedMeals(meals: GeneratedMealInput[], language: 'zh' | 'en') {
+  return meals
+    .map((meal, index) => normalizeGeneratedMeal(meal, language, mealTypes[index] || 'breakfast'))
+    .filter(meal => meal.dishName);
 }
 
 function customRecipeToLocal(recipe: CustomRecipe, mealType: MealType) {
@@ -214,7 +289,7 @@ function generateLocalReport(history: any[], language: 'zh' | 'en') {
 
 ## 调整建议
 
-优先保留宝宝接受度高的软饭、粥、面和蒸煮类食物。对被拒绝的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。
+优先保留用户接受度高的软饭、粥、面和蒸煮类食物。对被拒绝的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。
 
 ## 下次餐单思路
 
@@ -293,7 +368,7 @@ export async function generateDailyPlan(date: string, language: 'zh' | 'en', ref
   const prompt = `
 Generate a healthy daily meal plan for ${profileDescription} for the date ${date}.
 Variation token: ${refreshSeed}. Use it to provide a meaningfully different set when regenerating.
-The toddler has the following preferences:
+The user has the following preferences:
 - Likes: ${likes.join(', ') || 'None specified'}
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
 - Allergies: ${allergies.join(', ') || 'None specified'}
@@ -304,7 +379,13 @@ Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join('
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
 - Provide 4 meals: breakfast, lunch, snack, dinner.
-- For each meal, provide a dish name and a list of main ingredients.
+- Each meal must include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
+- For each meal, provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
+- ingredients must be a concise ingredient list.
+- steps must contain 3-6 practical cooking steps, one action per item.
+- nutritionTips must contain 1-3 nutrition notes.
+- cautions must contain 1-3 safety, allergy, texture, or serving notes.
+- Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
   `;
@@ -313,7 +394,8 @@ Requirements:
     if (getAiSettings().provider === 'qwen') {
       const content = await qwenChat(prompt, true);
       const data = JSON.parse(content || '{}');
-      return data.meals || generateLocalDailyPlan(date, refreshSeed);
+      const meals = normalizeGeneratedMeals(data.meals || [], language);
+      return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
     }
 
     const response = await getAI().models.generateContent({
@@ -331,9 +413,12 @@ Requirements:
                 properties: {
                   mealType: { type: Type.STRING, description: "breakfast, lunch, snack, or dinner" },
                   dishName: { type: Type.STRING },
-                  ingredients: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  nutritionTips: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  cautions: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
-                required: ["mealType", "dishName", "ingredients"]
+                required: ["mealType", "dishName", "ingredients", "steps", "nutritionTips", "cautions"]
               }
             }
           },
@@ -343,7 +428,8 @@ Requirements:
     });
 
     const data = JSON.parse(response.text || '{}');
-    return data.meals || generateLocalDailyPlan(date, refreshSeed);
+    const meals = normalizeGeneratedMeals(data.meals || [], language);
+    return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
   } catch (e) {
     console.error("Failed to generate AI meal plan", e);
     return generateLocalDailyPlan(date, refreshSeed);
@@ -372,7 +458,7 @@ export async function generateSingleMeal(date: string, mealType: string, languag
 
   const prompt = `
 Generate a healthy ${mealType} for ${profileDescription} for the date ${date}.
-The toddler has the following preferences:
+The user has the following preferences:
 - Likes: ${likes.join(', ') || 'None specified'}
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
 - Allergies: ${allergies.join(', ') || 'None specified'}
@@ -382,7 +468,13 @@ Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join('
 
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
-- Provide a dish name and a list of main ingredients.
+- Include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
+- Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
+- ingredients must be a concise ingredient list.
+- steps must contain 3-6 practical cooking steps, one action per item.
+- nutritionTips must contain 1-3 nutrition notes.
+- cautions must contain 1-3 safety, allergy, texture, or serving notes.
+- Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
   `;
@@ -390,7 +482,8 @@ Requirements:
   try {
     if (getAiSettings().provider === 'qwen') {
       const content = await qwenChat(prompt, true);
-      return JSON.parse(content || '{}');
+      const meal = JSON.parse(content || '{}');
+      return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
     }
 
     const response = await getAI().models.generateContent({
@@ -403,14 +496,18 @@ Requirements:
           properties: {
             mealType: { type: Type.STRING },
             dishName: { type: Type.STRING },
-            ingredients: { type: Type.ARRAY, items: { type: Type.STRING } }
+            ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+            steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+            nutritionTips: { type: Type.ARRAY, items: { type: Type.STRING } },
+            cautions: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["mealType", "dishName", "ingredients"]
+          required: ["mealType", "dishName", "ingredients", "steps", "nutritionTips", "cautions"]
         }
       }
     });
 
-    return JSON.parse(response.text || '{}');
+    const meal = JSON.parse(response.text || '{}');
+    return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
   } catch (e) {
     console.error("Failed to parse single meal JSON", e);
     return generateLocalSingleMeal(mealType, date);
@@ -456,8 +553,8 @@ export async function generateTutorial(dishName: string, ingredients: string[], 
 
   if (!shouldUseAI()) {
     return language === 'zh'
-      ? `# ${dishName}\n\n## 食材\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## 建议\n使用蒸、煮、炖等清淡方式制作，确保食材足够软烂，放温后再给宝宝食用。`
-      : `# ${dishName}\n\n## Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## Suggestion\nUse gentle cooking methods such as steaming, boiling, or stewing. Make sure everything is soft enough and cooled before serving.`;
+      ? `# ${dishName}\n\n## 食材\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## 做法步骤\n1. 将食材清洗干净并处理成适合用户入口的大小。\n2. 使用蒸、煮、炖等清淡方式烹饪至充分熟透。\n3. 根据用户咀嚼能力调整软硬度和颗粒大小，放温后食用。\n\n## 营养提示\n- 保持主食、蛋白质和蔬菜的搭配。\n\n## 注意事项\n- 避免额外添加盐和糖，注意过敏食材。`
+      : `# ${dishName}\n\n## Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## Cooking steps\n1. Wash and prepare ingredients into a serving size suitable for the user.\n2. Cook thoroughly with gentle methods such as steaming, boiling, or stewing.\n3. Adjust texture and portion size for the user's chewing ability, then serve warm.\n\n## Nutrition tips\n- Keep a balanced mix of carbohydrates, protein, and vegetables.\n\n## Cautions\n- Avoid added salt and sugar, and check allergy risks.`;
   }
 
   const langInstruction = language === 'zh' ? 'The tutorial MUST be written in Chinese (Simplified).' : 'The tutorial MUST be written in English.';
@@ -471,9 +568,9 @@ Main ingredients: ${ingredients.join(', ')}.
 Requirements:
 - The cooking method must be healthy (e.g., steaming, boiling, light sautéing).
 - Ensure the texture is appropriate for the target people.
-- Mention any specific prep steps for toddlers (e.g., cutting grapes in half, removing bones).
+- Mention any specific prep steps for the user group (e.g., cutting grapes in half, removing bones).
 - Do not use added salt or sugar.
-- Format as Markdown.
+- Format as Markdown with these exact sections: Ingredients, Cooking steps, Nutrition tips, Cautions. Use the Chinese section names 食材, 做法步骤, 营养提示, 注意事项 when writing in Chinese.
 - ${langInstruction}
   `;
 
@@ -497,7 +594,7 @@ export async function generateReport(timeframe: 'daily' | 'weekly', history: any
   const langInstruction = language === 'zh' ? 'The report MUST be written in Chinese (Simplified).' : 'The report MUST be written in English.';
 
   const prompt = `
-Analyze the following meal history for a 2-year-old toddler over the past ${timeframe} and provide a summary report.
+Analyze the following meal history for the user over the past ${timeframe} and provide a summary report.
 History:
 ${JSON.stringify(history)}
 

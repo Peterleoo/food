@@ -25,7 +25,7 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
 2. 胡萝卜和南瓜去皮，切成小粒。
 3. 锅中加入适量清水，放入小米、胡萝卜和南瓜。
 4. 大火煮开后转小火煮30分钟，直到食材软烂。
-5. 放温后确认没有硬块，再给宝宝食用。
+5. 放温后确认没有硬块，再给用户食用。
 
 ## 营养提示
 小米温和易消化，胡萝卜和南瓜富含β-胡萝卜素，适合作为早餐主食。`
@@ -70,7 +70,7 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
 5. 撒少量葱花，放温后食用。
 
 ## 营养提示
-蛋羹柔软细腻，适合咀嚼能力还在发展的宝宝。`
+蛋羹柔软细腻，适合咀嚼能力还在发展的用户。`
     },
     {
       mealType: 'breakfast',
@@ -119,11 +119,11 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
     {
       mealType: 'lunch',
       dishName: '鸡肉蔬菜面',
-      ingredients: ['宝宝面 50g', '鸡胸肉 30g', '西兰花 30g', '胡萝卜 20g'],
+      ingredients: ['细面 50g', '鸡胸肉 30g', '西兰花 30g', '胡萝卜 20g'],
       tutorial: `# 鸡肉蔬菜面
 
 ## 食材
-- 宝宝面 50g
+- 细面 50g
 - 鸡胸肉 30g
 - 西兰花 30g
 - 胡萝卜 20g
@@ -131,7 +131,7 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
 ## 步骤
 1. 鸡胸肉煮熟后撕碎或切末。
 2. 西兰花和胡萝卜蒸软后切碎。
-3. 宝宝面煮至软烂，剪成适合入口的小段。
+3. 细面煮至软烂，剪成适合入口的小段。
 4. 加入鸡肉和蔬菜，再煮2分钟。
 5. 不额外加盐，放温后食用。
 
@@ -218,7 +218,7 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
 1. 红薯去皮切块，蒸至完全软烂。
 2. 用勺子压成细腻红薯泥。
 3. 少量多次加入温奶，搅拌成糊状。
-4. 根据宝宝吞咽能力调整稀稠度。
+4. 根据用户吞咽能力调整稀稠度。
 5. 放温后食用。
 
 ## 营养提示
@@ -240,7 +240,7 @@ export const localRecipes: Record<MealType, LocalRecipe[]> = {
 2. 加入鸡蛋和面粉，搅拌成顺滑面糊。
 3. 平底锅小火加热，不放或少放油。
 4. 倒入小份面糊，两面煎熟。
-5. 切成适合宝宝抓握的小块。
+5. 切成适合用户抓握的小块。
 
 ## 营养提示
 香蕉提供自然甜味，适合训练自主进食。`
