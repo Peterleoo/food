@@ -1,11 +1,11 @@
 {
-  "name": "用户餐食",
-  "short_name": "用户餐食",
+  "name": "今日餐食",
+  "short_name": "今日餐食",
   "description": "为用户提供营养均衡的餐食计划",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F2F2F7",
-  "theme_color": "#007AFF",
+  "theme_color": "#F2F2F7",
   "icons": [
     {
       "src": "https://picsum.photos/seed/user-meals/192/192",

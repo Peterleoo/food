@@ -10,7 +10,7 @@ interface Translations {
 }
 
 export const translations: Translations = {
-  appTitle: { zh: '用户餐食', en: 'UserMeals' },
+  appTitle: { zh: '今日餐食', en: 'Daily Meals' },
   navToday: { zh: '今日', en: 'Today' },
   navPreferences: { zh: '自定义', en: 'Custom' },
   navReports: { zh: '报告', en: 'Reports' },
