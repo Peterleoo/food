@@ -32,6 +32,17 @@ select {
   -webkit-tap-highlight-color: transparent;
 }
 
+.chart-card,
+.chart-card * {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chart-card .recharts-wrapper,
+.chart-card .recharts-surface {
+  outline: none !important;
+}
+
 .ios-modal-panel {
   isolation: isolate;
 }

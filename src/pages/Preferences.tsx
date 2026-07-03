@@ -95,7 +95,7 @@ export default function Preferences() {
       }));
     } catch (error) {
       console.error(error);
-      setAiError(t('aiGenerateFailed'));
+      setAiError(error instanceof Error ? error.message : t('aiGenerateFailed'));
     } finally {
       setIsAiGenerating(false);
     }
@@ -275,14 +275,15 @@ export default function Preferences() {
                     <button
                       type="button"
                       onClick={() => setUseAiAdd(prev => !prev)}
+                      aria-pressed={useAiAdd}
                       className={clsx(
-                        "relative h-8 w-14 rounded-full transition-colors",
+                        "relative h-8 w-14 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 active:scale-95",
                         useAiAdd ? "bg-[#007AFF]" : "bg-gray-300"
                       )}
                     >
                       <span className={clsx(
-                        "absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform",
-                        useAiAdd ? "translate-x-7" : "translate-x-1"
+                        "absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200",
+                        useAiAdd ? "translate-x-6" : "translate-x-0"
                       )} />
                     </button>
                   </div>

@@ -53,7 +53,7 @@ export default function Reports() {
 
   const chartData = [
     { name: t('eaten'), value: stats.eaten, color: '#34C759' }, // iOS Green
-    { name: t('pending'), value: stats.partial, color: '#007AFF' }, // iOS Blue
+    { name: t('partial'), value: stats.partial, color: '#007AFF' }, // iOS Blue
     { name: t('rejected'), value: stats.rejected, color: '#FF3B30' }, // iOS Red
   ];
 
@@ -99,7 +99,7 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[28px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-64 mx-2">
+        <div className="chart-card bg-white rounded-[28px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-64 mx-2">
         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">{t('acceptanceRate')}</h3>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>

@@ -11,6 +11,22 @@ interface AiSettings {
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
+function getDefaultModel(provider: AiSettings['provider']) {
+  return provider === 'qwen' ? 'qwen-plus' : 'gemini-3-flash-preview';
+}
+
+function normalizeApiKey(value: string) {
+  return String(value || '').trim().replace(/^Bearer\s+/i, '');
+}
+
+function normalizeModel(provider: AiSettings['provider'], model: string) {
+  const cleanModel = String(model || '').trim();
+  if (provider === 'qwen') {
+    return cleanModel || getDefaultModel(provider);
+  }
+  return cleanModel.startsWith('qwen-') ? getDefaultModel(provider) : (cleanModel || getDefaultModel(provider));
+}
+
 type GeneratedMealInput = {
   mealType?: string;
   dishName?: string;
@@ -29,11 +45,12 @@ function getAiSettings(): AiSettings {
     const saved = localStorage.getItem('aiSettings');
     if (saved) {
       const parsed = JSON.parse(saved);
+      const provider = parsed.provider || 'google';
       return {
         enabled: Boolean(parsed.enabled),
-        provider: parsed.provider || 'google',
-        apiKey: parsed.apiKey || import.meta.env.VITE_GEMINI_API_KEY || '',
-        model: parsed.model || 'gemini-3-flash-preview'
+        provider,
+        apiKey: normalizeApiKey(parsed.apiKey || import.meta.env.VITE_GEMINI_API_KEY || ''),
+        model: normalizeModel(provider, parsed.model)
       };
     }
   } catch (e) {}
@@ -61,10 +78,10 @@ async function qwenChat(prompt: string, expectJson = false) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.apiKey}`
+      Authorization: `Bearer ${normalizeApiKey(settings.apiKey)}`
     },
     body: JSON.stringify({
-      model: settings.model || 'qwen-plus',
+      model: normalizeModel('qwen', settings.model),
       messages: [
         {
           role: 'system',
@@ -79,7 +96,15 @@ async function qwenChat(prompt: string, expectJson = false) {
   });
 
   if (!response.ok) {
-    throw new Error(`Qwen request failed: ${response.status}`);
+    let errorText = '';
+    try {
+      errorText = await response.text();
+    } catch (e) {}
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('千问请求被拒绝，请检查 DashScope API Key、模型权限、账户额度，或确认已选择可用模型。');
+    }
+    throw new Error(`千问请求失败：${response.status}${errorText ? ` ${errorText}` : ''}`);
   }
 
   const data = await response.json();
@@ -289,40 +314,67 @@ async function generateLocalSingleMeal(mealType: string, date: string) {
 function generateLocalReport(history: any[], language: 'zh' | 'en') {
   const eaten = history.filter(item => item.status === 'eaten');
   const rejected = history.filter(item => item.status === 'rejected');
+  const partial = history.filter(item => item.status === 'partial');
   const total = history.length || 1;
   const acceptanceRate = Math.round((eaten.length / total) * 100);
+  const profile = getBabyProfile();
+  const target = getTargetGroupLabel(profile.targetGroup);
 
   if (language === 'zh') {
+    const advice = target === 'elderly'
+      ? '优先关注易消化、优质蛋白、钙和膳食纤维的搭配，减少高盐高油食物。对被拒绝的菜品，可以调整软硬度、温度和调味强度，让餐食更容易入口。'
+      : target === 'adult'
+        ? '优先关注主食、蛋白质、蔬菜和健康脂肪的均衡，结合实际作息控制餐量。对被拒绝的菜品，可以调整烹饪方式、口味层次或替换相近食材。'
+        : '优先保留用户接受度高的软饭、粥、面和蒸煮类食物。对被拒绝的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。';
+    const nextPlan = target === 'elderly'
+      ? '下一次餐单建议保持少油少盐、蛋白质充足、蔬菜柔软易嚼，并避免重复近期被拒绝的菜名。'
+      : target === 'adult'
+        ? '下一次餐单建议保持主食、蛋白质和蔬菜的组合，结合偏好增加变化，并避免重复近期被拒绝的菜名。'
+        : '继续保持主食、蛋白质和蔬菜的组合，注意食材大小和软硬度，并避免重复近期被拒绝的菜名。';
+
     return `## 饮食概览
 
 - 记录餐数：${history.length}
 - 已吃：${eaten.length}
+- 部分接受：${partial.length}
 - 拒绝：${rejected.length}
 - 接受率：${acceptanceRate}%
 
 ## 调整建议
 
-优先保留用户接受度高的软饭、粥、面和蒸煮类食物。对被拒绝的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。
+${advice}
 
 ## 下次餐单思路
 
-继续保持主食、蛋白质和蔬菜的组合，避免重复最近被拒绝的菜名。`;
+${nextPlan}`;
   }
+
+  const advice = target === 'elderly'
+    ? 'Prioritize easy-to-digest meals with quality protein, calcium, fiber, and lower sodium. For rejected meals, adjust texture, temperature, and seasoning intensity.'
+    : target === 'adult'
+      ? 'Prioritize balanced meals with carbohydrates, protein, vegetables, and healthy fats. For rejected meals, adjust cooking methods, flavor balance, or use similar ingredients.'
+      : 'Keep soft rice, porridge, noodles, steamed dishes, and foods with a good acceptance history. For rejected meals, try similar ingredients in a softer texture or a different format.';
+  const nextPlan = target === 'elderly'
+    ? 'Keep meals lower in oil and sodium, with enough protein and soft vegetables, while avoiding recently rejected dishes.'
+    : target === 'adult'
+      ? 'Keep pairing carbohydrates, protein, and vegetables with more variety, while avoiding recently rejected dishes.'
+      : 'Keep pairing carbohydrates, protein, and vegetables while paying attention to texture, serving size, and recently rejected dishes.';
 
   return `## Meal Overview
 
 - Records: ${history.length}
 - Eaten: ${eaten.length}
+- Partially accepted: ${partial.length}
 - Rejected: ${rejected.length}
 - Acceptance rate: ${acceptanceRate}%
 
 ## Suggestions
 
-Keep soft rice, porridge, noodles, steamed dishes, and foods with a good acceptance history. For rejected meals, try similar ingredients in a softer texture or a different format.
+${advice}
 
 ## Next Plan
 
-Keep pairing carbohydrates, protein, and vegetables while avoiding recently rejected dishes.`;
+${nextPlan}`;
 }
 
 export function getBabyProfile() {
@@ -679,9 +731,11 @@ export async function generateReport(timeframe: 'daily' | 'weekly', history: any
   }
 
   const langInstruction = language === 'zh' ? 'The report MUST be written in Chinese (Simplified).' : 'The report MUST be written in English.';
+  const profile = getBabyProfile();
+  const profileDescription = getProfileDescription(profile);
 
   const prompt = `
-Analyze the following meal history for the user over the past ${timeframe} and provide a summary report.
+Analyze the following meal history for ${profileDescription} over the past ${timeframe} and provide a summary report.
 History:
 ${JSON.stringify(history)}
 
@@ -689,6 +743,8 @@ Provide:
 1. A summary of their eating habits (what they liked, what they rejected).
 2. Nutritional insights (are they getting enough variety?).
 3. Smart adjustments for future meals based on their rejections and acceptances.
+4. Target-group-specific advice: infant reports must focus on texture and safety; adult reports should focus on balanced nutrition and routine; elderly reports should focus on digestibility, protein, calcium, fiber, hydration, and lower sodium.
+Use user/target-people wording. Do not assume the user is an infant unless the profile says infant.
 Format as Markdown.
 - ${langInstruction}
   `;

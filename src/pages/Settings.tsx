@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../db';
-import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Pencil, Plus, X } from 'lucide-react';
+import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Pencil, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
+import { DEFAULT_NAV_ORDER, NAV_ORDER_CHANGE_EVENT, NAV_ORDER_STORAGE_KEY, loadNavOrder, type NavItemKey } from '../navigation';
 
 export default function Settings() {
   const { language, setLanguage, t } = useLanguage();
@@ -16,7 +17,8 @@ export default function Settings() {
   const [provider, setProvider] = useState<'google' | 'qwen'>('google');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-3-flash-preview');
-  const [activeModal, setActiveModal] = useState<null | 'profile' | 'app' | 'ai' | 'preferences' | 'data'>(null);
+  const [navOrder, setNavOrder] = useState<NavItemKey[]>(() => loadNavOrder());
+  const [activeModal, setActiveModal] = useState<null | 'profile' | 'app' | 'ai' | 'preferences' | 'navigation' | 'data'>(null);
   const [newItem, setNewItem] = useState('');
   const [activePrefTab, setActivePrefTab] = useState<'like' | 'dislike' | 'allergy'>('like');
   const [isSaved, setIsSaved] = useState(false);
@@ -40,17 +42,20 @@ export default function Settings() {
         if (settings.apiKey) setApiKey(settings.apiKey);
         if (settings.model) setModel(settings.model);
       }
+      setNavOrder(loadNavOrder());
     } catch (e) {}
   }, []);
 
   const handleSave = () => {
     localStorage.setItem('babyProfile', JSON.stringify({ age, gender, targetGroup, peopleCount }));
+    localStorage.setItem(NAV_ORDER_STORAGE_KEY, JSON.stringify(navOrder));
     localStorage.setItem('aiSettings', JSON.stringify({
       enabled: enableAiGeneration,
       provider,
       apiKey: apiKey.trim(),
       model
     }));
+    window.dispatchEvent(new Event(NAV_ORDER_CHANGE_EVENT));
     setIsSaved(true);
     setActiveModal(null);
     setTimeout(() => setIsSaved(false), 2000);
@@ -83,6 +88,27 @@ export default function Settings() {
     allergy: preferences?.filter(item => item.type === 'allergy').length || 0
   };
   const filteredPrefs = preferences?.filter(p => p.type === activePrefTab) || [];
+  const navLabels: Record<NavItemKey, string> = {
+    today: t('navToday'),
+    preferences: t('navPreferences'),
+    reports: t('navReports'),
+    settings: t('navSettings')
+  };
+  const moveNavItem = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= navOrder.length) return;
+    const next = [...navOrder];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    setNavOrder(next);
+  };
+  const getModalTitle = () => {
+    if (activeModal === 'profile') return t('babyProfile');
+    if (activeModal === 'preferences') return t('prefTitle');
+    if (activeModal === 'app') return t('appSettings');
+    if (activeModal === 'navigation') return t('bottomNavSettings');
+    if (activeModal === 'data') return t('dataManagement');
+    return t('aiSettings');
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 px-2">
@@ -96,6 +122,7 @@ export default function Settings() {
           { key: 'profile', title: t('babyProfile'), desc: profileSummary, icon: User, color: '#FF9500' },
           { key: 'preferences', title: t('prefTitle'), desc: `${t('likes')} ${prefCounts.like} · ${t('dislikes')} ${prefCounts.dislike} · ${t('allergies')} ${prefCounts.allergy}`, icon: Heart, color: '#34C759' },
           { key: 'app', title: t('appSettings'), desc: language === 'zh' ? '中文' : 'English', icon: Globe, color: '#34C759' },
+          { key: 'navigation', title: t('bottomNavSettings'), desc: navOrder.map(key => navLabels[key]).join(' · '), icon: Menu, color: '#5856D6' },
           { key: 'ai', title: t('aiSettings'), desc: `${enableAiGeneration ? t('enabled') || 'Enabled' : t('pending')} · ${provider === 'google' ? t('google') : t('qwen')} · ${model}`, icon: Sparkles, color: '#007AFF' },
           { key: 'data', title: t('dataManagement'), desc: t('clearHistory'), icon: Trash2, color: '#FF3B30' }
         ].map(item => {
@@ -126,7 +153,7 @@ export default function Settings() {
           <div className="ios-modal-panel bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b border-black/5">
               <h2 className="text-xl font-bold tracking-tight text-black">
-                {activeModal === 'profile' ? t('babyProfile') : activeModal === 'preferences' ? t('prefTitle') : activeModal === 'app' ? t('appSettings') : activeModal === 'data' ? t('dataManagement') : t('aiSettings')}
+                {getModalTitle()}
               </h2>
               <button onClick={() => setActiveModal(null)} className="p-2 bg-[#F2F2F7] text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition-colors active:scale-95">
                 <X size={20} />
@@ -205,11 +232,70 @@ export default function Settings() {
                 </div>
               )}
 
+              {activeModal === 'navigation' && (
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-gray-500">{t('bottomNavOrderDesc')}</p>
+                  <div className="space-y-3">
+                    {navOrder.map((key, index) => (
+                      <div key={key} className="flex items-center gap-3 rounded-[22px] bg-[#F2F2F7] p-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-[#007AFF] shadow-sm">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-black">{navLabels[key]}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => moveNavItem(index, -1)}
+                            disabled={index === 0}
+                            className="rounded-full bg-white p-2 text-gray-600 shadow-sm transition active:scale-95 disabled:opacity-30"
+                            aria-label={t('moveUp')}
+                          >
+                            <ArrowUp size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveNavItem(index, 1)}
+                            disabled={index === navOrder.length - 1}
+                            className="rounded-full bg-white p-2 text-gray-600 shadow-sm transition active:scale-95 disabled:opacity-30"
+                            aria-label={t('moveDown')}
+                          >
+                            <ArrowDown size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNavOrder(DEFAULT_NAV_ORDER)}
+                    className="flex w-full items-center justify-center gap-2 rounded-[20px] bg-[#F2F2F7] py-3.5 font-semibold text-gray-600 transition active:scale-95"
+                  >
+                    <RotateCcw size={18} />
+                    <span>{t('resetNavOrder')}</span>
+                  </button>
+                </div>
+              )}
+
               {activeModal === 'ai' && (
                 <>
                   <label className="flex items-center justify-between gap-4">
                     <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">{t('enableAiGeneration')}</span>
-                    <input type="checkbox" checked={enableAiGeneration} onChange={(e) => setEnableAiGeneration(e.target.checked)} className="h-5 w-5 accent-[#007AFF]" />
+                    <button
+                      type="button"
+                      onClick={() => setEnableAiGeneration(prev => !prev)}
+                      aria-pressed={enableAiGeneration}
+                      className={clsx(
+                        "relative h-8 w-14 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 active:scale-95",
+                        enableAiGeneration ? "bg-[#007AFF]" : "bg-gray-300"
+                      )}
+                    >
+                      <span className={clsx(
+                        "absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200",
+                        enableAiGeneration ? "translate-x-6" : "translate-x-0"
+                      )} />
+                    </button>
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button onClick={() => { setProvider('google'); setModel('gemini-3-flash-preview'); }} className={clsx("py-3 px-4 rounded-[20px] font-semibold transition-all active:scale-95", provider === 'google' ? "bg-[#007AFF]/10 text-[#007AFF] ring-2 ring-[#007AFF]" : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200")}>{t('google')}</button>
@@ -225,6 +311,16 @@ export default function Settings() {
                       </>
                     ) : (
                       <>
+                        <option value="qwen3.7-plus">qwen3.7-plus</option>
+                        <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                        <option value="qwen3.6-flash-2026-04-16">qwen3.6-flash-2026-04-16</option>
+                        <option value="qwen3.5-ocr">qwen3.5-ocr</option>
+                        <option value="qwen3.6-35b-a3b">qwen3.6-35b-a3b</option>
+                        <option value="qwen3.7-max-2026-05-17">qwen3.7-max-2026-05-17</option>
+                        <option value="qwen3.7-max-2026-06-08">qwen3.7-max-2026-06-08</option>
+                        <option value="glm-5.1">glm-5.1</option>
+                        <option value="qwen3.7-max-preview">qwen3.7-max-preview</option>
+                        <option value="qwen3.5-plus-2026-04-20">qwen3.5-plus-2026-04-20</option>
                         <option value="qwen-plus">qwen-plus</option>
                         <option value="qwen-turbo">qwen-turbo</option>
                         <option value="qwen-max">qwen-max</option>
