@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Home, Heart, BarChart2, Settings as SettingsIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
-import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, type NavItemKey } from '../navigation';
+import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, NAV_PATHS, type NavItemKey } from '../navigation';
 
 function PageSkeleton() {
   return (
@@ -40,10 +40,10 @@ export default function Layout() {
   const [navOrder, setNavOrder] = useState<NavItemKey[]>(() => loadNavOrder());
 
   const navItems = {
-    today: { to: '/', label: t('navToday'), icon: Home },
-    preferences: { to: '/preferences', label: t('navPreferences'), icon: Heart },
-    reports: { to: '/reports', label: t('navReports'), icon: BarChart2 },
-    settings: { to: '/settings', label: t('navSettings'), icon: SettingsIcon }
+    today: { to: NAV_PATHS.today, label: t('navToday'), icon: Home },
+    preferences: { to: NAV_PATHS.preferences, label: t('navPreferences'), icon: Heart },
+    reports: { to: NAV_PATHS.reports, label: t('navReports'), icon: BarChart2 },
+    settings: { to: NAV_PATHS.settings, label: t('navSettings'), icon: SettingsIcon }
   };
 
   useEffect(() => {

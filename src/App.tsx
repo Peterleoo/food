@@ -11,6 +11,11 @@ import Preferences from './pages/Preferences';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { getInitialNavPath } from './navigation';
+
+function InitialRoute() {
+  return <Navigate to={getInitialNavPath()} replace />;
+}
 
 export default function App() {
   useEffect(() => {
@@ -34,7 +39,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
+            <Route index element={<InitialRoute />} />
+            <Route path="today" element={<Home />} />
             <Route path="preferences" element={<Preferences />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
