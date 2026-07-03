@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChefHat, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ChefHat, ImagePlus, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { CustomRecipe, db } from '../db';
 import { useLanguage } from '../contexts/LanguageContext';
 import TutorialModal from '../components/TutorialModal';
+import { generateCustomRecipeDraft } from '../services/ai';
 
 type MealTypeValue = CustomRecipe['mealType'];
 
@@ -27,11 +28,16 @@ function splitList(value: string) {
 }
 
 export default function Preferences() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const recipes = useLiveQuery(() => db.customRecipes.orderBy('dishName').toArray());
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [useAiAdd, setUseAiAdd] = useState(false);
+  const [aiMode, setAiMode] = useState<'direct' | 'ingredients'>('direct');
+  const [aiInput, setAiInput] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [isRecipeOpen, setIsRecipeOpen] = useState(false);
   const [recipeTitle, setRecipeTitle] = useState('');
   const [recipeContent, setRecipeContent] = useState('');
@@ -41,6 +47,10 @@ export default function Preferences() {
     if (!isOpen) {
       setForm(emptyForm);
       setEditingId(null);
+      setUseAiAdd(false);
+      setAiMode('direct');
+      setAiInput('');
+      setAiError('');
     }
   }, [isOpen]);
 
@@ -57,6 +67,38 @@ export default function Preferences() {
       imageDataList: recipe.imageDataList || (recipe.imageData ? [recipe.imageData] : [])
     });
     setIsOpen(true);
+  };
+
+  const handleAiGenerate = async () => {
+    setIsAiGenerating(true);
+    setAiError('');
+    try {
+      const inputItems = splitList(aiInput);
+      const draft = await generateCustomRecipeDraft({
+        language,
+        mode: aiMode,
+        mealType: form.mealType,
+        dishName: form.dishName,
+        ingredients: aiMode === 'ingredients' ? inputItems : splitList(form.ingredients),
+        note: aiInput
+      });
+
+      setForm(prev => ({
+        ...prev,
+        dishName: draft.dishName || prev.dishName,
+        mealType: draft.mealType || prev.mealType,
+        ingredients: draft.ingredients.join('\n'),
+        tutorial: draft.steps.join('\n'),
+        nutritionTips: draft.nutritionTips.join('\n'),
+        cautions: draft.cautions.join('\n'),
+        audience: draft.audience.join('\n')
+      }));
+    } catch (error) {
+      console.error(error);
+      setAiError(t('aiGenerateFailed'));
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -218,6 +260,76 @@ export default function Preferences() {
             </div>
 
             <div className="ios-modal-scroll flex-1 overflow-y-auto p-6 space-y-5">
+              {!editingId && (
+                <div className="rounded-[24px] bg-[#F2F2F7] p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#007AFF]/10 text-[#007AFF]">
+                        <Sparkles size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-black">{t('aiAddRecipe')}</p>
+                        <p className="text-xs font-medium text-gray-500">{t('aiAddRecipeDesc')}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUseAiAdd(prev => !prev)}
+                      className={clsx(
+                        "relative h-8 w-14 rounded-full transition-colors",
+                        useAiAdd ? "bg-[#007AFF]" : "bg-gray-300"
+                      )}
+                    >
+                      <span className={clsx(
+                        "absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform",
+                        useAiAdd ? "translate-x-7" : "translate-x-1"
+                      )} />
+                    </button>
+                  </div>
+
+                  {useAiAdd && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2 rounded-[20px] bg-white p-1">
+                        <button
+                          type="button"
+                          onClick={() => setAiMode('direct')}
+                          className={clsx("rounded-[16px] py-2.5 text-sm font-semibold transition-colors", aiMode === 'direct' ? "bg-[#007AFF]/10 text-[#007AFF]" : "text-gray-500")}
+                        >
+                          {t('directGenerate')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAiMode('ingredients')}
+                          className={clsx("rounded-[16px] py-2.5 text-sm font-semibold transition-colors", aiMode === 'ingredients' ? "bg-[#007AFF]/10 text-[#007AFF]" : "text-gray-500")}
+                        >
+                          {t('ingredientsGenerate')}
+                        </button>
+                      </div>
+                      <textarea
+                        value={aiInput}
+                        onChange={(event) => setAiInput(event.target.value)}
+                        rows={3}
+                        placeholder={aiMode === 'ingredients' ? t('aiIngredientsPlaceholder') : t('aiDirectPlaceholder')}
+                        className="w-full bg-white border-0 rounded-[20px] px-5 py-3.5 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                      />
+                      {aiError && <p className="text-sm font-medium text-[#FF3B30]">{aiError}</p>}
+                      <button
+                        type="button"
+                        onClick={handleAiGenerate}
+                        disabled={isAiGenerating || (aiMode === 'ingredients' && !aiInput.trim())}
+                        className={clsx(
+                          "flex w-full items-center justify-center gap-2 rounded-[20px] bg-[#007AFF] py-3 text-sm font-semibold text-white shadow-sm transition-colors active:scale-95",
+                          (isAiGenerating || (aiMode === 'ingredients' && !aiInput.trim())) && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <Sparkles size={18} className={clsx(isAiGenerating && "animate-pulse")} />
+                        <span>{isAiGenerating ? t('aiGeneratingRecipe') : t('aiFillForm')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">{t('dishName')}</span>
                 <input

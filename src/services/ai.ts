@@ -18,6 +18,7 @@ type GeneratedMealInput = {
   steps?: unknown;
   nutritionTips?: unknown;
   cautions?: unknown;
+  audience?: unknown;
   tutorial?: string;
   imageData?: string;
   imageDataList?: string[];
@@ -186,6 +187,18 @@ function normalizeGeneratedMeals(meals: GeneratedMealInput[], language: 'zh' | '
   return meals
     .map((meal, index) => normalizeGeneratedMeal(meal, language, mealTypes[index] || 'breakfast'))
     .filter(meal => meal.dishName);
+}
+
+function normalizeGeneratedRecipeDraft(meal: GeneratedMealInput, fallbackMealType: MealType | 'any') {
+  return {
+    dishName: String(meal.dishName || '').trim(),
+    mealType: normalizeMealType(meal.mealType, fallbackMealType === 'any' ? 'breakfast' : fallbackMealType),
+    ingredients: toStringArray(meal.ingredients),
+    steps: toStringArray(meal.steps),
+    nutritionTips: toStringArray(meal.nutritionTips),
+    cautions: toStringArray(meal.cautions),
+    audience: toStringArray(meal.audience)
+  };
 }
 
 function customRecipeToLocal(recipe: CustomRecipe, mealType: MealType) {
@@ -512,6 +525,80 @@ Requirements:
     console.error("Failed to parse single meal JSON", e);
     return generateLocalSingleMeal(mealType, date);
   }
+}
+
+export async function generateCustomRecipeDraft(options: {
+  language: 'zh' | 'en';
+  mode: 'direct' | 'ingredients';
+  mealType?: MealType | 'any';
+  dishName?: string;
+  ingredients?: string[];
+  note?: string;
+}) {
+  if (!shouldUseAI()) {
+    throw new Error('AI is not enabled');
+  }
+
+  const langInstruction = options.language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
+  const profile = getBabyProfile();
+  const profileDescription = getProfileDescription(profile);
+  const ingredientText = options.ingredients?.length ? options.ingredients.join(', ') : 'None specified';
+  const mealTypeText = options.mealType && options.mealType !== 'any' ? options.mealType : 'any meal';
+  const modeInstruction = options.mode === 'ingredients'
+    ? `Create a recipe mainly using these ingredients: ${ingredientText}. You may add only small common pantry ingredients if necessary.`
+    : 'Create a complete recipe idea from scratch.';
+
+  const prompt = `
+Generate one healthy custom recipe draft for ${profileDescription}.
+Meal type preference: ${mealTypeText}.
+Existing dish name, if any: ${options.dishName || 'None specified'}.
+Extra user note: ${options.note || 'None specified'}.
+${modeInstruction}
+
+Requirements:
+- Return one recipe only.
+- The recipe must be practical for home cooking and suitable for the target people.
+- Avoid added salt and sugar where possible.
+- Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions, audience.
+- ingredients must be a concise list.
+- steps must contain 3-6 practical cooking steps, one action per item.
+- nutritionTips must contain 1-3 notes.
+- cautions must contain 1-3 safety, allergy, texture, or serving notes.
+- audience must contain 1-3 suitable people labels.
+- Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
+- The response MUST be a valid JSON object matching the requested schema.
+- ${langInstruction}
+  `;
+
+  if (getAiSettings().provider === 'qwen') {
+    const content = await qwenChat(prompt, true);
+    const meal = JSON.parse(content || '{}');
+    return normalizeGeneratedRecipeDraft(meal, options.mealType || 'any');
+  }
+
+  const response = await getAI().models.generateContent({
+    model: getAiSettings().model,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          mealType: { type: Type.STRING },
+          dishName: { type: Type.STRING },
+          ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+          steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          nutritionTips: { type: Type.ARRAY, items: { type: Type.STRING } },
+          cautions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          audience: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["mealType", "dishName", "ingredients", "steps", "nutritionTips", "cautions", "audience"]
+      }
+    }
+  });
+
+  const meal = JSON.parse(response.text || '{}');
+  return normalizeGeneratedRecipeDraft(meal, options.mealType || 'any');
 }
 
 export async function generateAudio(text: string, language: 'zh' | 'en') {

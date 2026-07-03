@@ -62,6 +62,15 @@ export const translations: Translations = {
   removeImage: { zh: '移除图片', en: 'Remove image' },
   onePerLine: { zh: '每行填写一条', en: 'One item per line' },
   stepsPlaceholder: { zh: '每行填写一个步骤', en: 'One step per line' },
+  aiAddRecipe: { zh: 'AI 添加', en: 'AI Add' },
+  aiAddRecipeDesc: { zh: '生成后会填入表单，可继续修改。', en: 'Generated content fills the form and remains editable.' },
+  directGenerate: { zh: '直接生成', en: 'Generate directly' },
+  ingredientsGenerate: { zh: '按食材生成', en: 'Use ingredients' },
+  aiDirectPlaceholder: { zh: '可填写口味、餐次、适合人群等要求，也可以留空直接生成。', en: 'Add taste, meal type, audience, or leave blank.' },
+  aiIngredientsPlaceholder: { zh: '输入已有食材，每行一个或用逗号分隔。', en: 'Enter ingredients, one per line or separated by commas.' },
+  aiFillForm: { zh: '生成并填入表单', en: 'Generate and fill form' },
+  aiGeneratingRecipe: { zh: '正在生成食谱...', en: 'Generating recipe...' },
+  aiGenerateFailed: { zh: 'AI 生成失败，请检查设置或稍后重试。', en: 'AI generation failed. Check settings or try again later.' },
   
   // Reports
   repTitle: { zh: '洞察与报告', en: 'Insights & Reports' },
