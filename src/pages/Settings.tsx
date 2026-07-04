@@ -2,9 +2,29 @@ import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../db';
-import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Pencil, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DEFAULT_NAV_ORDER, NAV_ORDER_CHANGE_EVENT, NAV_ORDER_STORAGE_KEY, loadNavOrder, type NavItemKey } from '../navigation';
+
+const QWEN_MODEL_OPTIONS = [
+  'deepseek-v4-flash',
+  'qwen3.7-plus',
+  'qwen3.6-flash-2026-04-16',
+  'qwen3.5-ocr',
+  'qwen3.6-35b-a3b',
+  'qwen3.7-max-2026-05-17',
+  'qwen3.7-max-2026-06-08',
+  'glm-5.1',
+  'qwen3.7-max-preview',
+  'qwen3.5-plus-2026-04-20'
+];
+
+function normalizeSettingsModel(provider: 'google' | 'qwen', value: string) {
+  if (provider === 'qwen') {
+    return QWEN_MODEL_OPTIONS.includes(value) ? value : 'deepseek-v4-flash';
+  }
+  return value || 'gemini-3-flash-preview';
+}
 
 export default function Settings() {
   const { language, setLanguage, t } = useLanguage();
@@ -37,10 +57,11 @@ export default function Settings() {
       const aiData = localStorage.getItem('aiSettings');
       if (aiData) {
         const settings = JSON.parse(aiData);
+        const nextProvider = settings.provider === 'qwen' ? 'qwen' : 'google';
         setEnableAiGeneration(Boolean(settings.enabled));
-        if (settings.provider) setProvider(settings.provider);
+        setProvider(nextProvider);
         if (settings.apiKey) setApiKey(settings.apiKey);
-        if (settings.model) setModel(settings.model);
+        setModel(normalizeSettingsModel(nextProvider, settings.model || ''));
       }
       setNavOrder(loadNavOrder());
     } catch (e) {}
@@ -101,6 +122,10 @@ export default function Settings() {
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
     setNavOrder(next);
   };
+  const handlePeopleCountChange = (value: string) => {
+    const nextValue = value.replace(/\D/g, '');
+    setPeopleCount(nextValue ? Math.max(1, Number(nextValue)) : 1);
+  };
   const getModalTitle = () => {
     if (activeModal === 'profile') return t('babyProfile');
     if (activeModal === 'preferences') return t('prefTitle');
@@ -142,7 +167,7 @@ export default function Settings() {
                   <p className="text-sm text-gray-500 truncate">{item.desc}</p>
                 </div>
               </div>
-              <Pencil className="text-gray-300 shrink-0" size={18} />
+              <ChevronRight className="shrink-0 text-gray-300" size={19} strokeWidth={1.8} />
             </button>
           );
         })}
@@ -191,7 +216,30 @@ export default function Settings() {
                   )}
                   <label className="block space-y-3">
                     <span className="block text-sm font-bold text-gray-700 uppercase tracking-wider">{t('servings')}</span>
-                    <input type="number" min="1" value={peopleCount} onChange={(e) => setPeopleCount(Math.max(1, Number(e.target.value)))} className="w-full bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-black focus:outline-none focus:ring-2 focus:ring-[#007AFF]" />
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPeopleCount(prev => Math.max(1, prev - 1))}
+                        className="h-12 w-12 rounded-full bg-[#F2F2F7] text-xl font-bold text-gray-600 transition active:scale-95"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={peopleCount}
+                        onChange={(event) => handlePeopleCountChange(event.target.value)}
+                        className="min-w-0 flex-1 bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-center text-black focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPeopleCount(prev => prev + 1)}
+                        className="h-12 w-12 rounded-full bg-[#F2F2F7] text-xl font-bold text-gray-600 transition active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
                   </label>
                 </>
               )}
@@ -299,7 +347,7 @@ export default function Settings() {
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button onClick={() => { setProvider('google'); setModel('gemini-3-flash-preview'); }} className={clsx("py-3 px-4 rounded-[20px] font-semibold transition-all active:scale-95", provider === 'google' ? "bg-[#007AFF]/10 text-[#007AFF] ring-2 ring-[#007AFF]" : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200")}>{t('google')}</button>
-                    <button onClick={() => { setProvider('qwen'); setModel('qwen-plus'); }} className={clsx("py-3 px-4 rounded-[20px] font-semibold transition-all active:scale-95", provider === 'qwen' ? "bg-[#007AFF]/10 text-[#007AFF] ring-2 ring-[#007AFF]" : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200")}>{t('qwen')}</button>
+                    <button onClick={() => { setProvider('qwen'); setModel('deepseek-v4-flash'); }} className={clsx("py-3 px-4 rounded-[20px] font-semibold transition-all active:scale-95", provider === 'qwen' ? "bg-[#007AFF]/10 text-[#007AFF] ring-2 ring-[#007AFF]" : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200")}>{t('qwen')}</button>
                   </div>
                   <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={provider === 'google' ? 'Gemini API Key' : 'DashScope API Key'} className="w-full bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]" />
                   <select value={model} onChange={(e) => setModel(e.target.value)} className="w-full bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-black focus:outline-none focus:ring-2 focus:ring-[#007AFF]">
@@ -311,19 +359,9 @@ export default function Settings() {
                       </>
                     ) : (
                       <>
-                        <option value="qwen3.7-plus">qwen3.7-plus</option>
-                        <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-                        <option value="qwen3.6-flash-2026-04-16">qwen3.6-flash-2026-04-16</option>
-                        <option value="qwen3.5-ocr">qwen3.5-ocr</option>
-                        <option value="qwen3.6-35b-a3b">qwen3.6-35b-a3b</option>
-                        <option value="qwen3.7-max-2026-05-17">qwen3.7-max-2026-05-17</option>
-                        <option value="qwen3.7-max-2026-06-08">qwen3.7-max-2026-06-08</option>
-                        <option value="glm-5.1">glm-5.1</option>
-                        <option value="qwen3.7-max-preview">qwen3.7-max-preview</option>
-                        <option value="qwen3.5-plus-2026-04-20">qwen3.5-plus-2026-04-20</option>
-                        <option value="qwen-plus">qwen-plus</option>
-                        <option value="qwen-turbo">qwen-turbo</option>
-                        <option value="qwen-max">qwen-max</option>
+                        {QWEN_MODEL_OPTIONS.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
                       </>
                     )}
                   </select>

@@ -12,7 +12,7 @@ interface AiSettings {
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 function getDefaultModel(provider: AiSettings['provider']) {
-  return provider === 'qwen' ? 'qwen-plus' : 'gemini-3-flash-preview';
+  return provider === 'qwen' ? 'deepseek-v4-flash' : 'gemini-3-flash-preview';
 }
 
 function normalizeApiKey(value: string) {
@@ -22,6 +22,7 @@ function normalizeApiKey(value: string) {
 function normalizeModel(provider: AiSettings['provider'], model: string) {
   const cleanModel = String(model || '').trim();
   if (provider === 'qwen') {
+    if (['qwen-plus', 'qwen-turbo', 'qwen-max'].includes(cleanModel)) return getDefaultModel(provider);
     return cleanModel || getDefaultModel(provider);
   }
   return cleanModel.startsWith('qwen-') ? getDefaultModel(provider) : (cleanModel || getDefaultModel(provider));
@@ -144,10 +145,11 @@ function buildCustomTutorial(recipe: CustomRecipe) {
   const cautions = recipe.cautions || [];
 
   return [
-    recipe.ingredients?.length ? `## 食材\n${recipe.ingredients.map(item => `- ${item}`).join('\n')}` : '',
-    steps.length ? `## 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
-    nutritionTips.length ? `## 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
-    cautions.length ? `## 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+    `## ${recipe.dishName}`,
+    recipe.ingredients?.length ? `### 食材\n${recipe.ingredients.map(item => `- ${item}`).join('\n')}` : '',
+    steps.length ? `### 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+    nutritionTips.length ? `### 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+    cautions.length ? `### 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
   ].filter(Boolean).join('\n\n');
 }
 
@@ -167,12 +169,77 @@ function toStringArray(value: unknown) {
 }
 
 function normalizeMealType(value: unknown, fallback: MealType = 'breakfast') {
-  const normalized = String(value || '').toLowerCase() as MealType;
+  const rawValue = String(value || '').trim().toLowerCase();
+  const mealTypeAliases: Record<string, MealType> = {
+    breakfast: 'breakfast',
+    morning: 'breakfast',
+    '早餐': 'breakfast',
+    '早饭': 'breakfast',
+    lunch: 'lunch',
+    noon: 'lunch',
+    midday: 'lunch',
+    '午餐': 'lunch',
+    '午饭': 'lunch',
+    '中饭': 'lunch',
+    '中餐': 'lunch',
+    snack: 'snack',
+    snacks: 'snack',
+    '加餐': 'snack',
+    '点心': 'snack',
+    '零食': 'snack',
+    dinner: 'dinner',
+    supper: 'dinner',
+    evening: 'dinner',
+    '晚餐': 'dinner',
+    '晚饭': 'dinner'
+  };
+  const normalized = (mealTypeAliases[rawValue] || rawValue) as MealType;
   return mealTypes.includes(normalized) ? normalized : fallback;
 }
 
+function detectMealTypeIntent(text: string) {
+  const value = String(text || '').toLowerCase();
+  if (/(早餐|早饭|breakfast|morning)/i.test(value)) return 'breakfast';
+  if (/(午餐|午饭|中餐|中饭|lunch|noon|midday)/i.test(value)) return 'lunch';
+  if (/(加餐|点心|零食|snack)/i.test(value)) return 'snack';
+  if (/(晚餐|晚饭|dinner|supper|evening)/i.test(value)) return 'dinner';
+  return null;
+}
+
+function getMealTypeInstruction(mealType: MealType | 'any', language: 'zh' | 'en') {
+  if (mealType === 'any') {
+    return language === 'zh'
+      ? '不限餐次。请根据用户备注中的中文餐次词（如早餐、午餐、中餐、晚餐、加餐）判断；只有明确要求早餐时才生成早餐。'
+      : 'Any meal. Choose breakfast, lunch, snack, or dinner based on the user note. Do not default to breakfast unless breakfast is requested.';
+  }
+
+  const zhLabels: Record<MealType, string> = {
+    breakfast: '早餐',
+    lunch: '午餐/中餐',
+    snack: '加餐/点心',
+    dinner: '晚餐'
+  };
+  const enLabels: Record<MealType, string> = {
+    breakfast: 'breakfast',
+    lunch: 'lunch',
+    snack: 'snack',
+    dinner: 'dinner'
+  };
+
+  return language === 'zh'
+    ? `${zhLabels[mealType]}。请按这个中文餐次生成食谱，JSON mealType 字段必须填写内部值 "${mealType}"。`
+    : `${enLabels[mealType]}. Generate the recipe for this meal type, and set JSON mealType exactly to "${mealType}".`;
+}
+
 function buildGeneratedTutorial(meal: GeneratedMealInput, language: 'zh' | 'en') {
-  if (meal.tutorial?.trim()) return meal.tutorial.trim();
+  if (meal.tutorial?.trim()) {
+    const tutorial = meal.tutorial.trim();
+    const dishName = String(meal.dishName || '').trim();
+    if (!dishName || new RegExp(`^#{1,3}\\s+${dishName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm').test(tutorial)) {
+      return tutorial;
+    }
+    return `## ${dishName}\n\n${tutorial}`;
+  }
 
   const ingredients = toStringArray(meal.ingredients);
   const steps = toStringArray(meal.steps);
@@ -181,18 +248,20 @@ function buildGeneratedTutorial(meal: GeneratedMealInput, language: 'zh' | 'en')
 
   if (language === 'zh') {
     return [
-      ingredients.length ? `## 食材\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
-      steps.length ? `## 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
-      nutritionTips.length ? `## 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
-      cautions.length ? `## 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+      meal.dishName ? `## ${meal.dishName}` : '',
+      ingredients.length ? `### 食材\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
+      steps.length ? `### 做法步骤\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+      nutritionTips.length ? `### 营养提示\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+      cautions.length ? `### 注意事项\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
     ].filter(Boolean).join('\n\n');
   }
 
   return [
-    ingredients.length ? `## Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
-    steps.length ? `## Cooking steps\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
-    nutritionTips.length ? `## Nutrition tips\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
-    cautions.length ? `## Cautions\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
+    meal.dishName ? `## ${meal.dishName}` : '',
+    ingredients.length ? `### Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}` : '',
+    steps.length ? `### Cooking steps\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '',
+    nutritionTips.length ? `### Nutrition tips\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
+    cautions.length ? `### Cautions\n${cautions.map(item => `- ${item}`).join('\n')}` : ''
   ].filter(Boolean).join('\n\n');
 }
 
@@ -215,9 +284,14 @@ function normalizeGeneratedMeals(meals: GeneratedMealInput[], language: 'zh' | '
 }
 
 function normalizeGeneratedRecipeDraft(meal: GeneratedMealInput, fallbackMealType: MealType | 'any') {
+  const detectedMealType = detectMealTypeIntent(String(meal.mealType || ''));
+  const mealType = fallbackMealType === 'any'
+    ? detectedMealType || 'any'
+    : fallbackMealType;
+
   return {
     dishName: String(meal.dishName || '').trim(),
-    mealType: normalizeMealType(meal.mealType, fallbackMealType === 'any' ? 'breakfast' : fallbackMealType),
+    mealType,
     ingredients: toStringArray(meal.ingredients),
     steps: toStringArray(meal.steps),
     nutritionTips: toStringArray(meal.nutritionTips),
@@ -595,20 +669,25 @@ export async function generateCustomRecipeDraft(options: {
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
   const ingredientText = options.ingredients?.length ? options.ingredients.join(', ') : 'None specified';
-  const mealTypeText = options.mealType && options.mealType !== 'any' ? options.mealType : 'any meal';
+  const requestedMealType = options.mealType && options.mealType !== 'any'
+    ? options.mealType
+    : detectMealTypeIntent([options.note, options.dishName, ingredientText].filter(Boolean).join(' ')) || 'any';
+  const mealTypeText = getMealTypeInstruction(requestedMealType, options.language);
   const modeInstruction = options.mode === 'ingredients'
     ? `Create a recipe mainly using these ingredients: ${ingredientText}. You may add only small common pantry ingredients if necessary.`
     : 'Create a complete recipe idea from scratch.';
 
   const prompt = `
 Generate one healthy custom recipe draft for ${profileDescription}.
-Meal type preference: ${mealTypeText}.
+Meal type preference / 餐次偏好: ${mealTypeText}
 Existing dish name, if any: ${options.dishName || 'None specified'}.
 Extra user note: ${options.note || 'None specified'}.
 ${modeInstruction}
 
 Requirements:
 - Return one recipe only.
+- If the meal type preference is breakfast, lunch, snack, or dinner, the JSON mealType MUST exactly equal that value.
+- If the user note mentions 早餐/午餐/中餐/中饭/晚餐/加餐 or breakfast/lunch/dinner/snack, honor that meal type.
 - The recipe must be practical for home cooking and suitable for the target people.
 - Avoid added salt and sugar where possible.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions, audience.
@@ -625,7 +704,7 @@ Requirements:
   if (getAiSettings().provider === 'qwen') {
     const content = await qwenChat(prompt, true);
     const meal = JSON.parse(content || '{}');
-    return normalizeGeneratedRecipeDraft(meal, options.mealType || 'any');
+    return normalizeGeneratedRecipeDraft(meal, requestedMealType);
   }
 
   const response = await getAI().models.generateContent({
@@ -650,7 +729,7 @@ Requirements:
   });
 
   const meal = JSON.parse(response.text || '{}');
-  return normalizeGeneratedRecipeDraft(meal, options.mealType || 'any');
+  return normalizeGeneratedRecipeDraft(meal, requestedMealType);
 }
 
 export async function generateAudio(text: string, language: 'zh' | 'en') {
@@ -690,11 +769,11 @@ export async function generateTutorial(dishName: string, ingredients: string[], 
     return localRecipe.tutorial;
   }
 
-  if (!shouldUseAI()) {
-    return language === 'zh'
-      ? `# ${dishName}\n\n## 食材\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## 做法步骤\n1. 将食材清洗干净并处理成适合用户入口的大小。\n2. 使用蒸、煮、炖等清淡方式烹饪至充分熟透。\n3. 根据用户咀嚼能力调整软硬度和颗粒大小，放温后食用。\n\n## 营养提示\n- 保持主食、蛋白质和蔬菜的搭配。\n\n## 注意事项\n- 避免额外添加盐和糖，注意过敏食材。`
-      : `# ${dishName}\n\n## Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n## Cooking steps\n1. Wash and prepare ingredients into a serving size suitable for the user.\n2. Cook thoroughly with gentle methods such as steaming, boiling, or stewing.\n3. Adjust texture and portion size for the user's chewing ability, then serve warm.\n\n## Nutrition tips\n- Keep a balanced mix of carbohydrates, protein, and vegetables.\n\n## Cautions\n- Avoid added salt and sugar, and check allergy risks.`;
-  }
+    if (!shouldUseAI()) {
+      return language === 'zh'
+      ? `## ${dishName}\n\n### 食材\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n### 做法步骤\n1. 将食材清洗干净并处理成适合用户入口的大小。\n2. 使用蒸、煮、炖等清淡方式烹饪至充分熟透。\n3. 根据用户咀嚼能力调整软硬度和颗粒大小，放温后食用。\n\n### 营养提示\n- 保持主食、蛋白质和蔬菜的搭配。\n\n### 注意事项\n- 避免额外添加盐和糖，注意过敏食材。`
+      : `## ${dishName}\n\n### Ingredients\n${ingredients.map(item => `- ${item}`).join('\n')}\n\n### Cooking steps\n1. Wash and prepare ingredients into a serving size suitable for the user.\n2. Cook thoroughly with gentle methods such as steaming, boiling, or stewing.\n3. Adjust texture and portion size for the user's chewing ability, then serve warm.\n\n### Nutrition tips\n- Keep a balanced mix of carbohydrates, protein, and vegetables.\n\n### Cautions\n- Avoid added salt and sugar, and check allergy risks.`;
+    }
 
   const langInstruction = language === 'zh' ? 'The tutorial MUST be written in Chinese (Simplified).' : 'The tutorial MUST be written in English.';
   const profile = getBabyProfile();
@@ -709,7 +788,8 @@ Requirements:
 - Ensure the texture is appropriate for the target people.
 - Mention any specific prep steps for the user group (e.g., cutting grapes in half, removing bones).
 - Do not use added salt or sugar.
-- Format as Markdown with these exact sections: Ingredients, Cooking steps, Nutrition tips, Cautions. Use the Chinese section names 食材, 做法步骤, 营养提示, 注意事项 when writing in Chinese.
+- Start with the recipe title as a level 2 Markdown heading.
+- Format as Markdown with these exact sections after the title: Ingredients, Cooking steps, Nutrition tips, Cautions. Use the Chinese section names 食材, 做法步骤, 营养提示, 注意事项 when writing in Chinese.
 - ${langInstruction}
   `;
 

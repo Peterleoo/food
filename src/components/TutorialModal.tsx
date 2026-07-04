@@ -14,6 +14,28 @@ interface TutorialModalProps {
   isLoading: boolean;
 }
 
+function getReadableAudioText(value: string) {
+  return value
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[-*`>]/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function pickNaturalVoice(language: 'zh' | 'en') {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return undefined;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferredNames = language === 'zh'
+    ? ['xiaoxiao', 'xiaoyi', 'tingting', 'huihui', 'google 普通话', 'mandarin', 'chinese']
+    : ['samantha', 'jenny', 'aria', 'google us english', 'natural'];
+  const langPrefix = language === 'zh' ? 'zh' : 'en';
+
+  return voices.find(voice => preferredNames.some(name => voice.name.toLowerCase().includes(name)))
+    || voices.find(voice => voice.lang.toLowerCase().startsWith(langPrefix))
+    || voices[0];
+}
+
 export default function TutorialModal({ isOpen, onClose, title, content, imageData, imageDataList, isLoading }: TutorialModalProps) {
   const { language, t } = useLanguage();
   const [isPlaying, setIsPlaying] = useState(false);
@@ -72,9 +94,12 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
       }
 
       if (typeof window !== 'undefined' && window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(content.replace(/[#*`>-]/g, ' '));
+        const utterance = new SpeechSynthesisUtterance(getReadableAudioText(content));
         utterance.lang = language === 'zh' ? 'zh-CN' : 'en-US';
-        utterance.rate = 0.92;
+        utterance.voice = pickNaturalVoice(language) || null;
+        utterance.rate = language === 'zh' ? 0.88 : 0.9;
+        utterance.pitch = 1.04;
+        utterance.volume = 1;
         utterance.onend = () => {
           utteranceRef.current = null;
           setIsPlaying(false);
@@ -101,7 +126,7 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
     <div className="pwa-modal-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4 backdrop-blur-sm">
       <div className="ios-modal-panel bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[80vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/5">
-          <h2 className="text-xl font-bold tracking-tight text-black line-clamp-1">{title}</h2>
+          <h2 className="text-xl font-bold tracking-tight text-black line-clamp-1">{t('recipeDetailTitle')}</h2>
           <div className="flex items-center space-x-2">
             {!isLoading && content && (
               <button
@@ -161,8 +186,18 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
                   )}
                 </div>
               )}
-              <div className="prose prose-blue prose-sm max-w-none">
-                <ReactMarkdown>{content}</ReactMarkdown>
+              <div className="prose prose-blue max-w-none">
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <h1 className="mb-5 mt-0 text-2xl font-bold tracking-tight text-black">{children}</h1>,
+                    h2: ({ children }) => <h2 className="mb-5 mt-0 text-2xl font-bold tracking-tight text-black">{children}</h2>,
+                    h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-bold tracking-tight text-black">{children}</h3>,
+                    p: ({ children }) => <p className="my-2 text-sm leading-6 text-gray-700">{children}</p>,
+                    li: ({ children }) => <li className="my-1 text-sm leading-6 text-gray-700">{children}</li>
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
               </div>
             </>
           )}

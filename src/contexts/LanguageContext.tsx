@@ -89,6 +89,7 @@ export const translations: Translations = {
   failedReport: { zh: '生成报告失败，请重试。', en: 'Failed to generate report. Please try again.' },
   
   // Tutorial Modal
+  recipeDetailTitle: { zh: '食材与做法', en: 'Ingredients & Steps' },
   generatingRecipe: { zh: '正在生成健康食谱...', en: 'Generating healthy recipe...' },
   failedTutorial: { zh: '加载教程失败，请重试。', en: 'Failed to load tutorial. Please try again.' },
   playAudio: { zh: '朗读食谱', en: 'Listen' },

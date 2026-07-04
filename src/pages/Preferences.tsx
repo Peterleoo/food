@@ -6,6 +6,7 @@ import { CustomRecipe, db } from '../db';
 import { useLanguage } from '../contexts/LanguageContext';
 import TutorialModal from '../components/TutorialModal';
 import { generateCustomRecipeDraft } from '../services/ai';
+import { buildRecipeMarkdown } from '../recipeDisplay';
 
 type MealTypeValue = CustomRecipe['mealType'];
 
@@ -147,16 +148,17 @@ export default function Preferences() {
       .filter(Boolean);
     const nutritionTips = recipe.nutritionTips || recipe.tags || [];
     const cautions = recipe.cautions || [];
-    const sections = [
-      recipe.ingredients.length ? `### ${t('ingredients')}\n${recipe.ingredients.map(item => `- ${item}`).join('\n')}` : '',
-      steps.length ? `### ${t('cookingSteps')}\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : `### ${t('cookingSteps')}\n${t('noRecipeContent')}`,
-      nutritionTips.length ? `### ${t('nutritionTips')}\n${nutritionTips.map(item => `- ${item}`).join('\n')}` : '',
-      cautions.length ? `### ${t('cautions')}\n${cautions.map(item => `- ${item}`).join('\n')}` : '',
-      recipe.audience.length ? `### ${t('suitablePeople')}\n${recipe.audience.map(item => `- ${item}`).join('\n')}` : '',
-    ].filter(Boolean);
 
     setRecipeTitle(recipe.dishName);
-    setRecipeContent(sections.join('\n\n'));
+    setRecipeContent(buildRecipeMarkdown({
+      title: recipe.dishName,
+      ingredients: recipe.ingredients,
+      steps,
+      nutritionTips,
+      cautions,
+      audience: recipe.audience,
+      t
+    }));
     setRecipeImages(recipe.imageDataList || (recipe.imageData ? [recipe.imageData] : []));
     setIsRecipeOpen(true);
   };
@@ -198,6 +200,19 @@ export default function Preferences() {
           recipes.map(recipe => (
             <div key={recipe.id} className="bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                {(recipe.imageDataList?.[0] || recipe.imageData) && (
+                  <button
+                    type="button"
+                    onClick={() => openRecipe(recipe)}
+                    className="h-28 w-full overflow-hidden rounded-[22px] bg-[#F2F2F7] sm:h-24 sm:w-24 sm:shrink-0"
+                  >
+                    <img
+                      src={recipe.imageDataList?.[0] || recipe.imageData}
+                      alt={recipe.dishName}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap gap-2 mb-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-[#FF9500] bg-[#FF9500]/10 px-2.5 py-1 rounded-md">

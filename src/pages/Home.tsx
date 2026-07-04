@@ -8,6 +8,7 @@ import { generateDailyPlan, generateTutorial, generateSingleMeal } from '../serv
 import TutorialModal from '../components/TutorialModal';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
+import { ensureRecipeTitle, extractRecipeSectionItems } from '../recipeDisplay';
 
 export default function Home() {
   const { language, t } = useLanguage();
@@ -106,7 +107,7 @@ export default function Home() {
     setIsTutorialOpen(true);
     
     if (existingTutorial) {
-      setTutorialContent(existingTutorial);
+      setTutorialContent(ensureRecipeTitle(dishName, existingTutorial));
       setIsTutorialLoading(false);
       return;
     }
@@ -114,9 +115,10 @@ export default function Home() {
     setIsTutorialLoading(true);
     try {
       const content = await generateTutorial(dishName, ingredients, language);
-      setTutorialContent(content);
+      const titledContent = ensureRecipeTitle(dishName, content);
+      setTutorialContent(titledContent);
       if (id) {
-        await db.mealHistory.update(id, { tutorial: content });
+        await db.mealHistory.update(id, { tutorial: titledContent });
       }
     } catch (err) {
       setTutorialContent(t('failedTutorial'));
@@ -195,6 +197,7 @@ export default function Home() {
         {visibleMeals?.map((meal) => {
           const mealTypeKey = meal.mealType.toLowerCase() as keyof typeof mealOrder;
           const translatedMealType = t(mealTypeKey) !== mealTypeKey ? t(mealTypeKey) : meal.mealType;
+          const nutritionTips = extractRecipeSectionItems(meal.tutorial, 'nutritionTips');
           
           return (
             <div key={meal.id} className={clsx(
@@ -209,6 +212,20 @@ export default function Home() {
               >
                 <RefreshCw size={16} className={clsx(regeneratingId === meal.id && "animate-spin")} />
               </button>
+
+              {(meal.imageDataList?.[0] || meal.imageData) && (
+                <button
+                  type="button"
+                  onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
+                  className="h-28 w-full overflow-hidden rounded-[22px] bg-[#F2F2F7] sm:h-24 sm:w-24 sm:shrink-0"
+                >
+                  <img
+                    src={meal.imageDataList?.[0] || meal.imageData}
+                    alt={meal.dishName}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              )}
 
               <div className="flex-1 pr-10">
                 <div className="flex items-center space-x-2 mb-2">
@@ -229,6 +246,9 @@ export default function Home() {
                 <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
                   {meal.ingredients.join(', ')}
                 </p>
+                {!!nutritionTips.length && (
+                  <p className="mt-2 line-clamp-1 text-xs text-gray-400">{nutritionTips.join(' · ')}</p>
+                )}
               </div>
               
               <div className="flex items-center space-x-2 sm:flex-col sm:space-x-0 sm:space-y-2 shrink-0">
