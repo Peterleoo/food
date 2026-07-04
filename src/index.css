@@ -67,13 +67,27 @@ select {
   outline: none !important;
 }
 
+.pwa-modal-backdrop {
+  z-index: 100 !important;
+}
+
 .ios-modal-panel {
   isolation: isolate;
+  max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 8px));
 }
 
 .ios-modal-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+}
+
+.ios-modal-panel > .border-t:last-child {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+}
+
+.pb-safe {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
 }
 
 @media all and (display-mode: standalone) {
