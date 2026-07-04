@@ -22,6 +22,15 @@ function getReadableAudioText(value: string) {
     .trim();
 }
 
+function detectAudioLanguage(value: string, fallback: 'zh' | 'en') {
+  const chineseCount = (value.match(/[\u3400-\u9fff]/g) || []).length;
+  const latinCount = (value.match(/[A-Za-z]/g) || []).length;
+
+  if (chineseCount >= 6 && chineseCount >= latinCount * 0.35) return 'zh';
+  if (latinCount >= 20 && latinCount > chineseCount * 2) return 'en';
+  return fallback;
+}
+
 function pickNaturalVoice(language: 'zh' | 'en') {
   if (typeof window === 'undefined' || !window.speechSynthesis) return undefined;
 
@@ -49,6 +58,9 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.pause();
+      if (audioRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
       audioRef.current = null;
     }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -76,29 +88,34 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
     }
 
     if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
+      try {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } catch (e) {
+        console.error(e);
+        setIsPlaying(false);
+      }
       return;
     }
 
     setIsAudioLoading(true);
     try {
-      const base64 = await generateAudio(content, language);
-      if (base64) {
-        const audio = new Audio(`data:audio/wav;base64,${base64}`);
-        audio.onended = () => setIsPlaying(false);
-        audioRef.current = audio;
-        audio.play();
-        setIsPlaying(true);
-        return;
-      }
+      const readableText = getReadableAudioText(content);
+      const audioLanguage = detectAudioLanguage(readableText, language);
+      const audioText = audioLanguage === 'zh' ? content : readableText;
+      const speakWithBrowser = () => {
+        if (typeof window === 'undefined' || !window.speechSynthesis) return false;
 
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(getReadableAudioText(content));
-        utterance.lang = language === 'zh' ? 'zh-CN' : 'en-US';
-        utterance.voice = pickNaturalVoice(language) || null;
-        utterance.rate = language === 'zh' ? 0.88 : 0.9;
-        utterance.pitch = 1.04;
+        const speechText = audioLanguage === 'zh' ? content.replace(/[#*`>-]/g, ' ') : readableText;
+        const utterance = new SpeechSynthesisUtterance(speechText);
+        utterance.lang = audioLanguage === 'zh' ? 'zh-CN' : 'en-US';
+        if (audioLanguage === 'zh') {
+          utterance.rate = 0.92;
+        } else {
+          utterance.voice = pickNaturalVoice(audioLanguage) || null;
+          utterance.rate = 0.9;
+          utterance.pitch = 1.04;
+        }
         utterance.volume = 1;
         utterance.onend = () => {
           utteranceRef.current = null;
@@ -112,7 +129,26 @@ export default function TutorialModal({ isOpen, onClose, title, content, imageDa
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
         setIsPlaying(true);
+        return true;
+      };
+
+      const audioUrl = await generateAudio(audioText, audioLanguage);
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => setIsPlaying(false);
+        audioRef.current = audio;
+        try {
+          await audio.play();
+          setIsPlaying(true);
+          return;
+        } catch (e) {
+          console.error(e);
+          audioRef.current = null;
+          if (speakWithBrowser()) return;
+        }
       }
+
+      speakWithBrowser();
     } catch (e) {
       console.error(e);
     } finally {

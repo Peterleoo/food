@@ -10,6 +10,12 @@ interface AiSettings {
 }
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+const AI_TIMEOUT_MS = 20000;
+const QWEN_JSON_MAX_TOKENS = 1800;
+const QWEN_TEXT_MAX_TOKENS = 900;
+const GEMINI_DAILY_MAX_TOKENS = 1800;
+const GEMINI_SINGLE_MAX_TOKENS = 900;
+const GEMINI_TEXT_MAX_TOKENS = 900;
 
 function getDefaultModel(provider: AiSettings['provider']) {
   return provider === 'qwen' ? 'deepseek-v4-flash' : 'gemini-3-flash-preview';
@@ -73,10 +79,35 @@ function shouldUseAI() {
   return settings.enabled && Boolean(settings.apiKey);
 }
 
+function withTimeout<T>(task: Promise<T>, timeoutMs = AI_TIMEOUT_MS) {
+  return Promise.race([
+    task,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error('AI request timed out')), timeoutMs);
+    })
+  ]);
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return window.btoa(binary);
+}
+
 async function qwenChat(prompt: string, expectJson = false) {
   const settings = getAiSettings();
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
   const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
     method: 'POST',
+    signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${normalizeApiKey(settings.apiKey)}`
@@ -92,9 +123,11 @@ async function qwenChat(prompt: string, expectJson = false) {
         },
         { role: 'user', content: prompt }
       ],
-      response_format: expectJson ? { type: 'json_object' } : undefined
+      response_format: expectJson ? { type: 'json_object' } : undefined,
+      temperature: expectJson ? 0.6 : 0.7,
+      max_tokens: expectJson ? QWEN_JSON_MAX_TOKENS : QWEN_TEXT_MAX_TOKENS
     })
-  });
+  }).finally(() => window.clearTimeout(timer));
 
   if (!response.ok) {
     let errorText = '';
@@ -520,10 +553,10 @@ Requirements:
 - Provide 4 meals: breakfast, lunch, snack, dinner.
 - Each meal must include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - For each meal, provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
-- ingredients must be a concise ingredient list.
-- steps must contain 3-6 practical cooking steps, one action per item.
-- nutritionTips must contain 1-3 nutrition notes.
-- cautions must contain 1-3 safety, allergy, texture, or serving notes.
+- ingredients must contain 3-6 concise items.
+- steps must contain 3-4 short practical cooking steps, one action per item.
+- nutritionTips must contain exactly 1 short nutrition note.
+- cautions must contain exactly 1 short safety, allergy, texture, or serving note.
 - Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
@@ -537,10 +570,12 @@ Requirements:
       return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
     }
 
-    const response = await getAI().models.generateContent({
+    const response = await withTimeout(getAI().models.generateContent({
       model: getAiSettings().model,
       contents: prompt,
       config: {
+        temperature: 0.6,
+        maxOutputTokens: GEMINI_DAILY_MAX_TOKENS,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -564,7 +599,7 @@ Requirements:
           required: ["meals"]
         }
       }
-    });
+    }));
 
     const data = JSON.parse(response.text || '{}');
     const meals = normalizeGeneratedMeals(data.meals || [], language);
@@ -609,10 +644,10 @@ Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
 - Include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
-- ingredients must be a concise ingredient list.
-- steps must contain 3-6 practical cooking steps, one action per item.
-- nutritionTips must contain 1-3 nutrition notes.
-- cautions must contain 1-3 safety, allergy, texture, or serving notes.
+- ingredients must contain 3-6 concise items.
+- steps must contain 3-4 short practical cooking steps, one action per item.
+- nutritionTips must contain exactly 1 short nutrition note.
+- cautions must contain exactly 1 short safety, allergy, texture, or serving note.
 - Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
@@ -625,10 +660,12 @@ Requirements:
       return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
     }
 
-    const response = await getAI().models.generateContent({
+    const response = await withTimeout(getAI().models.generateContent({
       model: getAiSettings().model,
       contents: prompt,
       config: {
+        temperature: 0.6,
+        maxOutputTokens: GEMINI_SINGLE_MAX_TOKENS,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -643,7 +680,7 @@ Requirements:
           required: ["mealType", "dishName", "ingredients", "steps", "nutritionTips", "cautions"]
         }
       }
-    });
+    }));
 
     const meal = JSON.parse(response.text || '{}');
     return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
@@ -691,11 +728,11 @@ Requirements:
 - The recipe must be practical for home cooking and suitable for the target people.
 - Avoid added salt and sugar where possible.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions, audience.
-- ingredients must be a concise list.
-- steps must contain 3-6 practical cooking steps, one action per item.
-- nutritionTips must contain 1-3 notes.
-- cautions must contain 1-3 safety, allergy, texture, or serving notes.
-- audience must contain 1-3 suitable people labels.
+- ingredients must contain 3-6 concise items.
+- steps must contain 3-4 short practical cooking steps, one action per item.
+- nutritionTips must contain exactly 1 short note.
+- cautions must contain exactly 1 safety, allergy, texture, or serving note.
+- audience must contain 1-2 suitable people labels.
 - Use user/target-people wording. Do not say baby or toddler unless the target group is infant.
 - The response MUST be a valid JSON object matching the requested schema.
 - ${langInstruction}
@@ -707,10 +744,12 @@ Requirements:
     return normalizeGeneratedRecipeDraft(meal, requestedMealType);
   }
 
-  const response = await getAI().models.generateContent({
+  const response = await withTimeout(getAI().models.generateContent({
     model: getAiSettings().model,
     contents: prompt,
     config: {
+      temperature: 0.6,
+      maxOutputTokens: GEMINI_SINGLE_MAX_TOKENS,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -726,24 +765,20 @@ Requirements:
         required: ["mealType", "dishName", "ingredients", "steps", "nutritionTips", "cautions", "audience"]
       }
     }
-  });
+  }));
 
   const meal = JSON.parse(response.text || '{}');
   return normalizeGeneratedRecipeDraft(meal, requestedMealType);
 }
 
 export async function generateAudio(text: string, language: 'zh' | 'en') {
-  if (!shouldUseAI()) {
-    return null;
-  }
-
-  if (getAiSettings().provider !== 'google') {
+  if (!shouldUseAI() || getAiSettings().provider !== 'google') {
     return null;
   }
 
   try {
     const voiceName = language === 'zh' ? 'Aoede' : 'Kore';
-    const response = await getAI().models.generateContent({
+    const response = await withTimeout(getAI().models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: {
@@ -754,9 +789,10 @@ export async function generateAudio(text: string, language: 'zh' | 'en') {
           },
         },
       },
-    });
+    }), 25000);
 
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return base64 ? `data:audio/wav;base64,${base64}` : null;
   } catch (e) {
     console.error("Failed to generate audio", e);
     return null;
@@ -797,10 +833,14 @@ Requirements:
     return qwenChat(prompt);
   }
 
-  const response = await getAI().models.generateContent({
+  const response = await withTimeout(getAI().models.generateContent({
     model: getAiSettings().model,
-    contents: prompt
-  });
+    contents: prompt,
+    config: {
+      temperature: 0.6,
+      maxOutputTokens: GEMINI_TEXT_MAX_TOKENS
+    }
+  }));
 
   return response.text || '';
 }
@@ -833,10 +873,14 @@ Format as Markdown.
     return qwenChat(prompt);
   }
 
-  const response = await getAI().models.generateContent({
+  const response = await withTimeout(getAI().models.generateContent({
     model: getAiSettings().model,
-    contents: prompt
-  });
+    contents: prompt,
+    config: {
+      temperature: 0.6,
+      maxOutputTokens: GEMINI_TEXT_MAX_TOKENS
+    }
+  }));
 
   return response.text || '';
 }
