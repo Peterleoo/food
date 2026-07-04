@@ -68,7 +68,16 @@ select {
 }
 
 .pwa-modal-backdrop {
-  z-index: 100 !important;
+  position: fixed !important;
+  inset: 0 !important;
+  min-height: 100dvh;
+  z-index: 1000 !important;
+}
+
+.app-shell:has(.pwa-modal-backdrop) .app-bottom-nav {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .ios-modal-panel {
