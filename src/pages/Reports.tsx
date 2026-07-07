@@ -21,7 +21,6 @@ export default function Reports() {
     return await db.mealHistory.where('date').aboveOrEqual(startDate).toArray();
   }, [timeframe]);
 
-
   const handleGenerateReport = async () => {
     if (!history || history.length === 0) {
       setError(t('notEnoughHistory'));

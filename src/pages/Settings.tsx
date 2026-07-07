@@ -5,6 +5,8 @@ import { db } from '../db';
 import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DEFAULT_NAV_ORDER, NAV_ORDER_CHANGE_EVENT, NAV_ORDER_STORAGE_KEY, loadNavOrder, type NavItemKey } from '../navigation';
+import { HEALTH_CONDITION_OPTIONS, getHealthConditionLabels, normalizeUserProfile, type HealthConditionKey } from '../profile';
+import { CUISINE_PREFERENCE_OPTIONS, TASTE_PREFERENCES_STORAGE_KEY, getCuisinePreferenceLabels, normalizeTastePreferences, type CuisinePreferenceKey } from '../tastePreferences';
 
 const QWEN_MODEL_OPTIONS = [
   'deepseek-v4-flash',
@@ -33,6 +35,8 @@ export default function Settings() {
   const [gender, setGender] = useState<'boy' | 'girl'>('boy');
   const [targetGroup, setTargetGroup] = useState<'infant' | 'adult' | 'elderly'>('infant');
   const [peopleCount, setPeopleCount] = useState(1);
+  const [healthConditions, setHealthConditions] = useState<HealthConditionKey[]>([]);
+  const [healthConditionNote, setHealthConditionNote] = useState('');
   const [enableAiGeneration, setEnableAiGeneration] = useState(false);
   const [provider, setProvider] = useState<'google' | 'qwen'>('google');
   const [apiKey, setApiKey] = useState('');
@@ -41,6 +45,8 @@ export default function Settings() {
   const [activeModal, setActiveModal] = useState<null | 'profile' | 'app' | 'ai' | 'preferences' | 'navigation' | 'data'>(null);
   const [newItem, setNewItem] = useState('');
   const [activePrefTab, setActivePrefTab] = useState<'like' | 'dislike' | 'allergy'>('like');
+  const [cuisinePreferences, setCuisinePreferences] = useState<CuisinePreferenceKey[]>([]);
+  const [tasteNote, setTasteNote] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [isCleared, setIsCleared] = useState(false);
 
@@ -48,11 +54,13 @@ export default function Settings() {
     try {
       const data = localStorage.getItem('babyProfile');
       if (data) {
-        const profile = JSON.parse(data);
-        if (profile.age) setAge(profile.age);
-        if (profile.gender) setGender(profile.gender);
-        if (profile.targetGroup) setTargetGroup(profile.targetGroup);
-        if (profile.peopleCount) setPeopleCount(profile.peopleCount);
+        const profile = normalizeUserProfile(JSON.parse(data));
+        setAge(profile.age);
+        setGender(profile.gender);
+        setTargetGroup(profile.targetGroup);
+        setPeopleCount(profile.peopleCount);
+        setHealthConditions(profile.healthConditions);
+        setHealthConditionNote(profile.healthConditionNote);
       }
       const aiData = localStorage.getItem('aiSettings');
       if (aiData) {
@@ -63,18 +71,35 @@ export default function Settings() {
         if (settings.apiKey) setApiKey(settings.apiKey);
         setModel(normalizeSettingsModel(nextProvider, settings.model || ''));
       }
+      const tasteData = localStorage.getItem(TASTE_PREFERENCES_STORAGE_KEY);
+      if (tasteData) {
+        const tastePreferences = normalizeTastePreferences(JSON.parse(tasteData));
+        setCuisinePreferences(tastePreferences.cuisines);
+        setTasteNote(tastePreferences.note);
+      }
       setNavOrder(loadNavOrder());
     } catch (e) {}
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem('babyProfile', JSON.stringify({ age, gender, targetGroup, peopleCount }));
+    localStorage.setItem('babyProfile', JSON.stringify({
+      age,
+      gender,
+      targetGroup,
+      peopleCount,
+      healthConditions,
+      healthConditionNote: healthConditionNote.trim()
+    }));
     localStorage.setItem(NAV_ORDER_STORAGE_KEY, JSON.stringify(navOrder));
     localStorage.setItem('aiSettings', JSON.stringify({
       enabled: enableAiGeneration,
       provider,
       apiKey: apiKey.trim(),
       model
+    }));
+    localStorage.setItem(TASTE_PREFERENCES_STORAGE_KEY, JSON.stringify({
+      cuisines: cuisinePreferences,
+      note: tasteNote.trim()
     }));
     window.dispatchEvent(new Event(NAV_ORDER_CHANGE_EVENT));
     setIsSaved(true);
@@ -103,11 +128,18 @@ export default function Settings() {
   const profileSummary = targetGroup === 'infant'
     ? `${t('infant')} · ${age >= 12 ? `${Math.floor(age / 12)}${t('years')}` : `${age}${t('months')}`} · ${t('servings')} ${peopleCount}`
     : `${t(targetGroup)} · ${t('servings')} ${peopleCount}`;
+  const healthSummary = healthConditions.length
+    ? getHealthConditionLabels(healthConditions, language).join('、')
+    : (language === 'zh' ? '无特殊限制' : 'No special constraints');
+  const fullProfileSummary = `${profileSummary} · ${healthSummary}`;
   const prefCounts = {
     like: preferences?.filter(item => item.type === 'like').length || 0,
     dislike: preferences?.filter(item => item.type === 'dislike').length || 0,
     allergy: preferences?.filter(item => item.type === 'allergy').length || 0
   };
+  const cuisineSummary = cuisinePreferences.length
+    ? getCuisinePreferenceLabels(cuisinePreferences, language).join('、')
+    : (language === 'zh' ? '未选菜系' : 'No cuisine selected');
   const filteredPrefs = preferences?.filter(p => p.type === activePrefTab) || [];
   const navLabels: Record<NavItemKey, string> = {
     today: t('navToday'),
@@ -125,6 +157,12 @@ export default function Settings() {
   const handlePeopleCountChange = (value: string) => {
     const nextValue = value.replace(/\D/g, '');
     setPeopleCount(nextValue ? Math.max(1, Number(nextValue)) : 1);
+  };
+  const toggleHealthCondition = (key: HealthConditionKey) => {
+    setHealthConditions(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key]);
+  };
+  const toggleCuisinePreference = (key: CuisinePreferenceKey) => {
+    setCuisinePreferences(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key]);
   };
   const getModalTitle = () => {
     if (activeModal === 'profile') return t('babyProfile');
@@ -144,8 +182,8 @@ export default function Settings() {
 
       <div className="space-y-4 px-2">
         {[
-          { key: 'profile', title: t('babyProfile'), desc: profileSummary, icon: User, color: '#FF9500' },
-          { key: 'preferences', title: t('prefTitle'), desc: `${t('likes')} ${prefCounts.like} · ${t('dislikes')} ${prefCounts.dislike} · ${t('allergies')} ${prefCounts.allergy}`, icon: Heart, color: '#34C759' },
+          { key: 'profile', title: t('babyProfile'), desc: fullProfileSummary, icon: User, color: '#FF9500' },
+          { key: 'preferences', title: t('prefTitle'), desc: `${t('likes')} ${prefCounts.like} · ${t('dislikes')} ${prefCounts.dislike} · ${t('allergies')} ${prefCounts.allergy} · ${cuisineSummary}`, icon: Heart, color: '#34C759' },
           { key: 'app', title: t('appSettings'), desc: language === 'zh' ? '中文' : 'English', icon: Globe, color: '#34C759' },
           { key: 'navigation', title: t('bottomNavSettings'), desc: navOrder.map(key => navLabels[key]).join(' · '), icon: Menu, color: '#5856D6' },
           { key: 'ai', title: t('aiSettings'), desc: `${enableAiGeneration ? t('enabled') || 'Enabled' : t('pending')} · ${provider === 'google' ? t('google') : t('qwen')} · ${model}`, icon: Sparkles, color: '#007AFF' },
@@ -241,6 +279,43 @@ export default function Settings() {
                       </button>
                     </div>
                   </label>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">
+                        {language === 'zh' ? '特殊饮食' : 'Special diet'}
+                      </label>
+                      <p className="mt-1 text-xs font-medium text-gray-400">
+                        {language === 'zh' ? '用于生成餐单时避开或调整食材，不替代医生建议。' : 'Used to guide meal generation. It does not replace medical advice.'}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {HEALTH_CONDITION_OPTIONS.map(option => {
+                        const selected = healthConditions.includes(option.key);
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => toggleHealthCondition(option.key)}
+                            className={clsx(
+                              "min-h-11 rounded-[18px] px-3 py-2 text-sm font-semibold transition-all active:scale-95",
+                              selected
+                                ? "bg-[#FF9500]/10 text-[#C66A00] ring-2 ring-[#FF9500]"
+                                : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200"
+                            )}
+                          >
+                            {language === 'zh' ? option.zh : option.en}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <textarea
+                      value={healthConditionNote}
+                      onChange={(event) => setHealthConditionNote(event.target.value)}
+                      rows={3}
+                      placeholder={language === 'zh' ? '其他情况、医生建议或需要避开的饮食要求（选填）' : 'Other conditions, clinician guidance, or dietary limits (optional)'}
+                      className="w-full resize-none bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-black focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                    />
+                  </div>
                 </>
               )}
 
@@ -269,6 +344,43 @@ export default function Settings() {
                         <button onClick={() => pref.id && db.preferences.delete(pref.id)}><X size={14} /></button>
                       </span>
                     ))}
+                  </div>
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">
+                        {language === 'zh' ? '菜系口味' : 'Cuisine flavor'}
+                      </label>
+                      <p className="mt-1 text-xs font-medium text-gray-400">
+                        {language === 'zh' ? '影响 AI 生成餐单的口味方向，默认优先常见普通食材。' : 'Guides AI meal flavor. Common everyday ingredients are preferred by default.'}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {CUISINE_PREFERENCE_OPTIONS.map(option => {
+                        const selected = cuisinePreferences.includes(option.key);
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => toggleCuisinePreference(option.key)}
+                            className={clsx(
+                              "min-h-11 rounded-[18px] px-3 py-2 text-sm font-semibold transition-all active:scale-95",
+                              selected
+                                ? "bg-[#34C759]/10 text-[#1F8A3B] ring-2 ring-[#34C759]"
+                                : "bg-[#F2F2F7] text-gray-500 hover:bg-gray-200"
+                            )}
+                          >
+                            {language === 'zh' ? option.zh : option.en}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <textarea
+                      value={tasteNote}
+                      onChange={(event) => setTasteNote(event.target.value)}
+                      rows={3}
+                      placeholder={language === 'zh' ? '补充口味偏好，比如少辣、偏软烂、不要奶香等（选填）' : 'Add flavor notes, such as less spicy, softer texture, no creamy taste (optional)'}
+                      className="w-full resize-none bg-[#F2F2F7] border-0 rounded-[20px] px-5 py-3.5 text-black focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                    />
                   </div>
                 </>
               )}

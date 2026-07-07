@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { format } from 'date-fns';
 import { zhCN, enUS } from 'date-fns/locale';
-import { CheckCircle2, XCircle, ChefHat, RefreshCw, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, ChefHat, RefreshCw, AlertCircle, Repeat2 } from 'lucide-react';
 import { db } from '../db';
 import { generateDailyPlan, generateTutorial, generateSingleMeal } from '../services/ai';
 import TutorialModal from '../components/TutorialModal';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ensureRecipeTitle, extractRecipeSectionItems } from '../recipeDisplay';
+import { createShoppingList, type ShoppingCategory } from '../shoppingList';
+import { normalizeUserProfile } from '../profile';
+import { TODAY_NAV_TOGGLE_EVENT } from '../navigation';
 
 export default function Home() {
   const { language, t } = useLanguage();
@@ -17,6 +20,15 @@ export default function Home() {
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [activeView, setActiveView] = useState<'meals' | 'shopping'>('meals');
+  const shoppingBoughtStorageKey = `shoppingBought:${today}`;
+  const [boughtShoppingItems, setBoughtShoppingItems] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(shoppingBoughtStorageKey) || '[]'));
+    } catch (e) {
+      return new Set();
+    }
+  });
   
   // Tutorial state
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -138,22 +150,97 @@ export default function Home() {
   const dateLabel = language === 'zh'
     ? format(new Date(), 'yyyy/M/d EEE', { locale: zhCN })
     : format(new Date(), 'EEEE, MMMM d', { locale: enUS });
+  const profile = useMemo(() => {
+    try {
+      return normalizeUserProfile(JSON.parse(localStorage.getItem('babyProfile') || 'null'));
+    } catch (e) {
+      return normalizeUserProfile(null);
+    }
+  }, []);
+  const shoppingList = useMemo(
+    () => createShoppingList(todaysMeals || [], profile),
+    [todaysMeals, profile]
+  );
+  const shoppingCategoryLabels: Record<ShoppingCategory, string> = {
+    vegetables: language === 'zh' ? '蔬菜' : 'Vegetables',
+    meat: language === 'zh' ? '肉食' : 'Meat',
+    fruit: language === 'zh' ? '水果' : 'Fruit',
+    staple: language === 'zh' ? '米面' : 'Staples',
+    eggDairy: language === 'zh' ? '蛋奶' : 'Eggs & Dairy',
+    soy: language === 'zh' ? '豆制品' : 'Soy',
+    other: language === 'zh' ? '其他' : 'Other'
+  };
+  const shoppingCategoryOrder: ShoppingCategory[] = ['vegetables', 'meat', 'fruit', 'staple', 'eggDairy', 'soy', 'other'];
+  const groupedShoppingList = useMemo(
+    () => shoppingCategoryOrder
+      .map(category => ({
+        category,
+        items: shoppingList.filter(item => item.category === category)
+      }))
+      .filter(group => group.items.length > 0),
+    [shoppingList]
+  );
+  const shoppingListDesc = t('shoppingListDesc');
+  const toggleView = () => setActiveView(view => view === 'meals' ? 'shopping' : 'meals');
+  const toggleShoppingBought = (name: string) => {
+    setBoughtShoppingItems(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    localStorage.setItem(shoppingBoughtStorageKey, JSON.stringify(Array.from(boughtShoppingItems)));
+  }, [boughtShoppingItems, shoppingBoughtStorageKey]);
+
+  useEffect(() => {
+    const handleTodayNavToggle = () => {
+      if (!todaysMeals?.length) return;
+      toggleView();
+    };
+    window.addEventListener(TODAY_NAV_TOGGLE_EVENT, handleTodayNavToggle);
+    return () => window.removeEventListener(TODAY_NAV_TOGGLE_EVENT, handleTodayNavToggle);
+  }, [todaysMeals?.length]);
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto px-2">
-      <div className="flex items-center justify-between px-2">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-black">{t('todaysPlan')}</h2>
-          <p className="text-gray-500 font-medium mt-1">{dateLabel}</p>
-        </div>
+      <div className="flex items-start justify-between gap-3 px-2">
         <button
-          onClick={handleGeneratePlan}
-          disabled={isGenerating}
-          className="flex items-center space-x-2 bg-[#007AFF]/10 text-[#007AFF] px-4 py-2 rounded-full font-semibold hover:bg-[#007AFF]/20 transition-colors disabled:opacity-50 active:scale-95"
+          type="button"
+          onClick={toggleView}
+          disabled={!todaysMeals?.length}
+          className="group min-w-0 text-left transition-transform active:scale-[0.99] disabled:active:scale-100"
+          aria-label={activeView === 'meals' ? t('shoppingList') : t('todaysPlan')}
         >
-          <RefreshCw size={18} className={clsx(isGenerating && "animate-spin")} />
-          <span>{todaysMeals?.length ? t('regenerate') : t('generatePlan')}</span>
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-3xl font-bold tracking-tight text-black">
+              {activeView === 'meals' ? t('todaysPlan') : t('shoppingList')}
+            </h2>
+            <span className="mt-1 rounded-full bg-white p-1.5 text-gray-400 shadow-sm transition-colors group-hover:text-[#007AFF]">
+              <Repeat2 size={16} />
+            </span>
+          </div>
+          <p className="text-gray-500 font-medium mt-1">
+            {activeView === 'meals' ? dateLabel : shoppingListDesc}
+          </p>
         </button>
+        {activeView === 'meals' && (
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={handleGeneratePlan}
+            disabled={isGenerating}
+            className="flex items-center space-x-2 bg-[#007AFF]/10 text-[#007AFF] px-4 py-2 rounded-full font-semibold hover:bg-[#007AFF]/20 transition-colors disabled:opacity-50 active:scale-95"
+          >
+            <RefreshCw size={18} className={clsx(isGenerating && "animate-spin")} />
+            <span>{todaysMeals?.length ? t('regenerate') : t('generatePlan')}</span>
+          </button>
+        </div>
+        )}
       </div>
 
       {error && (
@@ -193,100 +280,155 @@ export default function Home() {
         </div>
       )}
 
-      <div className="space-y-4 px-2 pb-6">
-        {visibleMeals?.map((meal) => {
-          const mealTypeKey = meal.mealType.toLowerCase() as keyof typeof mealOrder;
-          const translatedMealType = t(mealTypeKey) !== mealTypeKey ? t(mealTypeKey) : meal.mealType;
-          const nutritionTips = extractRecipeSectionItems(meal.tutorial, 'nutritionTips');
-          
-          return (
-            <div key={meal.id} className={clsx(
-              "relative bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row sm:items-center gap-4 transition-all",
-              rejectingId === meal.id && "animate-fly-away"
-            )}>
-              <button
-                onClick={() => handleRegenerateSingle(meal.id!, meal.mealType)}
-                disabled={regeneratingId === meal.id}
-                className="absolute top-4 right-4 p-2 bg-[#F2F2F7] text-gray-500 rounded-full hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
-                title={t('regenerate')}
-              >
-                <RefreshCw size={16} className={clsx(regeneratingId === meal.id && "animate-spin")} />
-              </button>
-
-              {(meal.imageDataList?.[0] || meal.imageData) && (
-                <button
-                  type="button"
-                  onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
-                  className="h-28 w-full overflow-hidden rounded-[22px] bg-[#F2F2F7] sm:h-24 sm:w-24 sm:shrink-0"
-                >
-                  <img
-                    src={meal.imageDataList?.[0] || meal.imageData}
-                    alt={meal.dishName}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-              )}
-
-              <div className="flex-1 pr-10">
-                <div className="flex items-center space-x-2 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#FF9500] bg-[#FF9500]/10 px-2.5 py-1 rounded-md">
-                    {translatedMealType}
-                  </span>
-                  {meal.status !== 'pending' && (
-                    <span className={clsx(
-                      "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md",
-                      meal.status === 'eaten' ? "text-[#34C759] bg-[#34C759]/10" :
-                      "text-[#007AFF] bg-[#007AFF]/10"
-                    )}>
-                      {t(meal.status as any)}
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-xl font-bold text-black leading-tight mb-2 tracking-tight">{meal.dishName}</h3>
-                <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                  {meal.ingredients.join(', ')}
-                </p>
-                {!!nutritionTips.length && (
-                  <p className="mt-2 line-clamp-1 text-xs text-gray-400">{nutritionTips.join(' · ')}</p>
-                )}
-              </div>
+      {!!todaysMeals?.length && (
+      <div className={clsx("home-flip-scene px-2 pb-6", activeView === 'shopping' && "is-flipped")}>
+        <div className="home-flip-card">
+          <div className="home-flip-face home-flip-front space-y-4">
+            {visibleMeals?.map((meal) => {
+              const mealTypeKey = meal.mealType.toLowerCase() as keyof typeof mealOrder;
+              const translatedMealType = t(mealTypeKey) !== mealTypeKey ? t(mealTypeKey) : meal.mealType;
+              const nutritionTips = extractRecipeSectionItems(meal.tutorial, 'nutritionTips');
               
-              <div className="flex items-center space-x-2 sm:flex-col sm:space-x-0 sm:space-y-2 shrink-0">
-                <button
-                  onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
-                  className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#F2F2F7] text-black px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-gray-200 transition-colors active:scale-95"
-                >
-                  <ChefHat size={18} />
-                  <span>{t('recipe')}</span>
-                </button>
-                
-                <div className="flex space-x-2 flex-1 sm:flex-none">
+              return (
+                <div key={meal.id} className={clsx(
+                  "relative bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row sm:items-center gap-4 transition-all",
+                  rejectingId === meal.id && "animate-fly-away"
+                )}>
                   <button
-                    onClick={() => updateMealStatus(meal.id!, 'eaten')}
-                    className={clsx(
-                      "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
-                      meal.status === 'eaten' ? "bg-[#34C759]/10 text-[#34C759]" : "bg-[#F2F2F7] text-gray-400 hover:bg-[#34C759]/10 hover:text-[#34C759]"
-                    )}
-                    title={t('eaten')}
+                    onClick={() => handleRegenerateSingle(meal.id!, meal.mealType)}
+                    disabled={regeneratingId === meal.id}
+                    className="absolute top-4 right-4 p-2 bg-[#F2F2F7] text-gray-500 rounded-full hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
+                    title={t('regenerate')}
                   >
-                    <CheckCircle2 size={22} />
+                    <RefreshCw size={16} className={clsx(regeneratingId === meal.id && "animate-spin")} />
                   </button>
-                  <button
-                    onClick={() => updateMealStatus(meal.id!, 'rejected')}
-                    className={clsx(
-                      "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
-                      "bg-[#F2F2F7] text-gray-400 hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]"
+
+                  {(meal.imageDataList?.[0] || meal.imageData) && (
+                    <button
+                      type="button"
+                      onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
+                      className="h-28 w-full overflow-hidden rounded-[22px] bg-[#F2F2F7] sm:h-24 sm:w-24 sm:shrink-0"
+                    >
+                      <img
+                        src={meal.imageDataList?.[0] || meal.imageData}
+                        alt={meal.dishName}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  )}
+
+                  <div className="flex-1 pr-10">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#FF9500] bg-[#FF9500]/10 px-2.5 py-1 rounded-md">
+                        {translatedMealType}
+                      </span>
+                      {meal.status !== 'pending' && (
+                        <span className={clsx(
+                          "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md",
+                          meal.status === 'eaten' ? "text-[#34C759] bg-[#34C759]/10" :
+                          "text-[#007AFF] bg-[#007AFF]/10"
+                        )}>
+                          {t(meal.status as any)}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-bold text-black leading-tight mb-2 tracking-tight">{meal.dishName}</h3>
+                    <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                      {meal.ingredients.join(', ')}
+                    </p>
+                    {!!nutritionTips.length && (
+                      <p className="mt-2 line-clamp-1 text-xs text-gray-400">{nutritionTips.join(' · ')}</p>
                     )}
-                    title={t('rejected')}
-                  >
-                    <XCircle size={22} />
-                  </button>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 sm:flex-col sm:space-x-0 sm:space-y-2 shrink-0">
+                    <button
+                      onClick={() => openTutorial(meal.dishName, meal.ingredients, meal.tutorial, meal.id, meal.imageData, meal.imageDataList)}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#F2F2F7] text-black px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-gray-200 transition-colors active:scale-95"
+                    >
+                      <ChefHat size={18} />
+                      <span>{t('recipe')}</span>
+                    </button>
+                    
+                    <div className="flex space-x-2 flex-1 sm:flex-none">
+                      <button
+                        onClick={() => updateMealStatus(meal.id!, 'eaten')}
+                        className={clsx(
+                          "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
+                          meal.status === 'eaten' ? "bg-[#34C759]/10 text-[#34C759]" : "bg-[#F2F2F7] text-gray-400 hover:bg-[#34C759]/10 hover:text-[#34C759]"
+                        )}
+                        title={t('eaten')}
+                      >
+                        <CheckCircle2 size={22} />
+                      </button>
+                      <button
+                        onClick={() => updateMealStatus(meal.id!, 'rejected')}
+                        className={clsx(
+                          "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
+                          "bg-[#F2F2F7] text-gray-400 hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]"
+                        )}
+                        title={t('rejected')}
+                      >
+                        <XCircle size={22} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+
+          <div className="home-flip-face home-flip-back">
+            {shoppingList.length ? (
+              <div className="space-y-5">
+                {groupedShoppingList.map(group => (
+                  <section key={group.category} className="space-y-3">
+                    <div className="px-1">
+                      <h3 className="text-sm font-bold text-gray-500">{shoppingCategoryLabels[group.category]}</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {group.items.map(item => {
+                        const isBought = boughtShoppingItems.has(item.name);
+                        return (
+                          <div key={item.name} className={clsx("flex items-center justify-between gap-4 rounded-[28px] bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all", isBought && "opacity-55")}>
+                            <div className="flex min-w-0 items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() => toggleShoppingBought(item.name)}
+                                aria-pressed={isBought}
+                                className={clsx(
+                                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all active:scale-95",
+                                  isBought ? "bg-[#34C759]/10 text-[#34C759]" : "bg-[#F2F2F7] text-gray-300"
+                                )}
+                              >
+                                {isBought ? <CheckCircle2 size={22} /> : <span className="h-5 w-5 rounded-full border-2 border-current" />}
+                              </button>
+                              <div className="min-w-0">
+                                <p className={clsx("truncate text-lg font-bold tracking-tight text-black", isBought && "line-through")}>{item.name}</p>
+                                {!!item.dishes.length && (
+                                  <p className="mt-0.5 truncate text-sm font-medium text-gray-500">
+                                    {item.dishes.join('、')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="shrink-0 text-sm font-bold text-gray-500">
+                              {item.amount}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
-            </div>
-          );
-        })}
+            ) : (
+              <p className="rounded-[28px] bg-white px-5 py-8 text-center text-sm font-medium text-gray-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">{t('noShoppingList')}</p>
+            )}
+          </div>
+        </div>
       </div>
+      )}
 
       <TutorialModal
         isOpen={isTutorialOpen}

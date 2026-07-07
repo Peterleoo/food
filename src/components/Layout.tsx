@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Home, Heart, BarChart2, Settings as SettingsIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
-import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, NAV_PATHS, type NavItemKey } from '../navigation';
+import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, NAV_PATHS, TODAY_NAV_TOGGLE_EVENT, type NavItemKey } from '../navigation';
 
 function PageSkeleton() {
   return (
@@ -98,11 +98,17 @@ export default function Layout() {
         {navOrder.map(key => {
           const item = navItems[key];
           const Icon = item.icon;
+          const isTodayActive = key === 'today' && location.pathname === NAV_PATHS.today;
 
           return (
             <NavLink
               key={key}
               to={item.to}
+              onClick={(event) => {
+                if (!isTodayActive) return;
+                event.preventDefault();
+                window.dispatchEvent(new Event(TODAY_NAV_TOGGLE_EVENT));
+              }}
               className={({ isActive }) =>
                 clsx(
                   "flex h-[56px] min-w-[68px] flex-col items-center justify-center rounded-[22px] text-[10px] font-semibold transition-colors duration-150",

@@ -67,6 +67,52 @@ select {
   outline: none !important;
 }
 
+.home-flip-scene {
+  isolation: isolate;
+  perspective: 1200px;
+}
+
+.home-flip-card {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.home-flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  grid-area: 1 / 1;
+  min-width: 0;
+  transform-origin: center center;
+}
+
+.home-flip-front {
+  pointer-events: auto;
+}
+
+.home-flip-back {
+  pointer-events: none;
+  transform: rotateY(180deg);
+}
+
+.home-flip-scene.is-flipped .home-flip-card {
+  transform: rotateY(180deg);
+}
+
+.home-flip-scene.is-flipped .home-flip-front {
+  pointer-events: none;
+}
+
+.home-flip-scene.is-flipped .home-flip-back {
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-flip-card {
+    transition: none;
+  }
+}
+
 .pwa-modal-backdrop {
   position: fixed !important;
   inset: 0 !important;

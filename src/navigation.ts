@@ -3,6 +3,7 @@ export type NavItemKey = 'today' | 'preferences' | 'reports' | 'settings';
 export const DEFAULT_NAV_ORDER: NavItemKey[] = ['today', 'preferences', 'reports', 'settings'];
 export const NAV_ORDER_STORAGE_KEY = 'bottomNavOrder';
 export const NAV_ORDER_CHANGE_EVENT = 'bottomNavOrderChange';
+export const TODAY_NAV_TOGGLE_EVENT = 'todayNavToggle';
 export const NAV_PATHS: Record<NavItemKey, string> = {
   today: '/today',
   preferences: '/preferences',

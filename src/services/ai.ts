@@ -1,6 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CustomRecipe, db } from "../db";
 import { findLocalRecipe, localRecipes, MealType } from "../data/localRecipes";
+import { getHealthProfilePrompt, normalizeUserProfile } from "../profile";
+import { TASTE_PREFERENCES_STORAGE_KEY, getTastePreferencePrompt, normalizeTastePreferences } from "../tastePreferences";
 
 interface AiSettings {
   enabled: boolean;
@@ -10,7 +12,7 @@ interface AiSettings {
 }
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
-const AI_TIMEOUT_MS = 20000;
+const AI_TIMEOUT_MS = 45000;
 const QWEN_JSON_MAX_TOKENS = 1800;
 const QWEN_TEXT_MAX_TOKENS = 900;
 const GEMINI_DAILY_MAX_TOKENS = 1800;
@@ -79,6 +81,14 @@ function shouldUseAI() {
   return settings.enabled && Boolean(settings.apiKey);
 }
 
+function getTastePreferences() {
+  try {
+    const data = localStorage.getItem(TASTE_PREFERENCES_STORAGE_KEY);
+    if (data) return normalizeTastePreferences(JSON.parse(data));
+  } catch (e) {}
+  return normalizeTastePreferences(null);
+}
+
 function withTimeout<T>(task: Promise<T>, timeoutMs = AI_TIMEOUT_MS) {
   return Promise.race([
     task,
@@ -104,30 +114,40 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 async function qwenChat(prompt: string, expectJson = false) {
   const settings = getAiSettings();
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-  const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-    method: 'POST',
-    signal: controller.signal,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${normalizeApiKey(settings.apiKey)}`
-    },
-    body: JSON.stringify({
-      model: normalizeModel('qwen', settings.model),
-      messages: [
-        {
-          role: 'system',
-          content: expectJson
-            ? 'You are a user meal planning assistant. Return only valid JSON with no markdown.'
-            : 'You are a user meal planning assistant.'
-        },
-        { role: 'user', content: prompt }
-      ],
-      response_format: expectJson ? { type: 'json_object' } : undefined,
-      temperature: expectJson ? 0.6 : 0.7,
-      max_tokens: expectJson ? QWEN_JSON_MAX_TOKENS : QWEN_TEXT_MAX_TOKENS
-    })
-  }).finally(() => window.clearTimeout(timer));
+  const timer = window.setTimeout(() => controller.abort(new Error('AI request timed out')), AI_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${normalizeApiKey(settings.apiKey)}`
+      },
+      body: JSON.stringify({
+        model: normalizeModel('qwen', settings.model),
+        messages: [
+          {
+            role: 'system',
+            content: expectJson
+              ? 'You are a user meal planning assistant. Return only valid JSON with no markdown.'
+              : 'You are a user meal planning assistant.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        response_format: expectJson ? { type: 'json_object' } : undefined,
+        temperature: expectJson ? 0.6 : 0.7,
+        max_tokens: expectJson ? QWEN_JSON_MAX_TOKENS : QWEN_TEXT_MAX_TOKENS
+      })
+    });
+  } catch (error: any) {
+    if (error?.name === 'AbortError' || error?.message === 'AI request timed out') {
+      throw new Error('AI request timed out');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 
   if (!response.ok) {
     let errorText = '';
@@ -425,7 +445,8 @@ function generateLocalReport(history: any[], language: 'zh' | 'en') {
   const total = history.length || 1;
   const acceptanceRate = Math.round((eaten.length / total) * 100);
   const profile = getBabyProfile();
-  const target = getTargetGroupLabel(profile.targetGroup);
+  const normalizedProfile = normalizeUserProfile(profile);
+  const target = getTargetGroupLabel(normalizedProfile.targetGroup);
 
   if (language === 'zh') {
     const advice = target === 'elderly'
@@ -487,9 +508,9 @@ ${nextPlan}`;
 export function getBabyProfile() {
   try {
     const data = localStorage.getItem('babyProfile');
-    if (data) return JSON.parse(data);
+    if (data) return normalizeUserProfile(JSON.parse(data));
   } catch (e) {}
-  return { age: 24, gender: 'boy', targetGroup: 'infant', peopleCount: 1 };
+  return normalizeUserProfile(null);
 }
 
 function getTargetGroupLabel(targetGroup?: string) {
@@ -508,10 +529,11 @@ function getAgeString(months: number) {
 }
 
 function getProfileDescription(profile: any) {
-  const peopleCount = profile.peopleCount || 1;
-  const target = getTargetGroupLabel(profile.targetGroup);
+  const normalizedProfile = normalizeUserProfile(profile);
+  const peopleCount = normalizedProfile.peopleCount || 1;
+  const target = getTargetGroupLabel(normalizedProfile.targetGroup);
   if (target === 'infant') {
-    return `${getAgeString(profile.age || 24)} infant (${profile.gender || 'boy'}), serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
+    return `${getAgeString(normalizedProfile.age || 24)} infant (${normalizedProfile.gender || 'boy'}), serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
   }
   return `${target}, serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
 }
@@ -536,6 +558,8 @@ export async function generateDailyPlan(date: string, language: 'zh' | 'en', ref
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const specialDietPrompt = getHealthProfilePrompt(profile);
+  const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
   const prompt = `
 Generate a healthy daily meal plan for ${profileDescription} for the date ${date}.
@@ -545,11 +569,22 @@ The user has the following preferences:
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
 - Allergies: ${allergies.join(', ') || 'None specified'}
 
+Special dietary constraints:
+${specialDietPrompt}
+
+Cuisine and flavor preferences:
+${tastePreferencePrompt}
+
 Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
+- Prefer common everyday ingredients that are easy to buy in ordinary markets or supermarkets.
+- Avoid rare, expensive, imported, seasonal-only, or hard-to-buy ingredients unless the user explicitly asks for them.
+- Follow cuisine and flavor preferences when possible, but keep the meals practical and healthy.
+- Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
+- Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Provide 4 meals: breakfast, lunch, snack, dinner.
 - Each meal must include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - For each meal, provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
@@ -605,7 +640,11 @@ Requirements:
     const meals = normalizeGeneratedMeals(data.meals || [], language);
     return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
   } catch (e) {
-    console.error("Failed to generate AI meal plan", e);
+    if (e instanceof Error && e.message === 'AI request timed out') {
+      console.warn("AI meal plan timed out; using local fallback.");
+    } else {
+      console.error("Failed to generate AI meal plan", e);
+    }
     return generateLocalDailyPlan(date, refreshSeed);
   }
 }
@@ -629,6 +668,8 @@ export async function generateSingleMeal(date: string, mealType: string, languag
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const specialDietPrompt = getHealthProfilePrompt(profile);
+  const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
   const prompt = `
 Generate a healthy ${mealType} for ${profileDescription} for the date ${date}.
@@ -637,11 +678,22 @@ The user has the following preferences:
 - Dislikes: ${dislikes.join(', ') || 'None specified'}
 - Allergies: ${allergies.join(', ') || 'None specified'}
 
+Special dietary constraints:
+${specialDietPrompt}
+
+Cuisine and flavor preferences:
+${tastePreferencePrompt}
+
 Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
+- Prefer common everyday ingredients that are easy to buy in ordinary markets or supermarkets.
+- Avoid rare, expensive, imported, seasonal-only, or hard-to-buy ingredients unless the user explicitly asks for them.
+- Follow cuisine and flavor preferences when possible, but keep the meal practical and healthy.
+- Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
+- Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
 - ingredients must contain 3-6 concise items.
@@ -705,6 +757,8 @@ export async function generateCustomRecipeDraft(options: {
   const langInstruction = options.language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const specialDietPrompt = getHealthProfilePrompt(profile);
+  const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
   const ingredientText = options.ingredients?.length ? options.ingredients.join(', ') : 'None specified';
   const requestedMealType = options.mealType && options.mealType !== 'any'
     ? options.mealType
@@ -721,12 +775,23 @@ Existing dish name, if any: ${options.dishName || 'None specified'}.
 Extra user note: ${options.note || 'None specified'}.
 ${modeInstruction}
 
+Special dietary constraints:
+${specialDietPrompt}
+
+Cuisine and flavor preferences:
+${tastePreferencePrompt}
+
 Requirements:
 - Return one recipe only.
 - If the meal type preference is breakfast, lunch, snack, or dinner, the JSON mealType MUST exactly equal that value.
 - If the user note mentions 早餐/午餐/中餐/中饭/晚餐/加餐 or breakfast/lunch/dinner/snack, honor that meal type.
 - The recipe must be practical for home cooking and suitable for the target people.
+- Prefer common everyday ingredients that are easy to buy in ordinary markets or supermarkets.
+- Avoid rare, expensive, imported, seasonal-only, or hard-to-buy ingredients unless the user explicitly asks for them.
+- Follow cuisine and flavor preferences when possible, but keep the recipe practical and healthy.
 - Avoid added salt and sugar where possible.
+- Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
+- Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions, audience.
 - ingredients must contain 3-6 concise items.
 - steps must contain 3-4 short practical cooking steps, one action per item.
@@ -814,14 +879,26 @@ export async function generateTutorial(dishName: string, ingredients: string[], 
   const langInstruction = language === 'zh' ? 'The tutorial MUST be written in Chinese (Simplified).' : 'The tutorial MUST be written in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const specialDietPrompt = getHealthProfilePrompt(profile);
+  const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
   const prompt = `
 Provide a detailed, step-by-step cooking tutorial for ${profileDescription}: "${dishName}".
 Main ingredients: ${ingredients.join(', ')}.
 
+Special dietary constraints:
+${specialDietPrompt}
+
+Cuisine and flavor preferences:
+${tastePreferencePrompt}
+
 Requirements:
 - The cooking method must be healthy (e.g., steaming, boiling, light sautéing).
 - Ensure the texture is appropriate for the target people.
+- Prefer common everyday ingredients and practical home cooking steps.
+- Follow cuisine and flavor preferences when suggesting seasonings or variations.
+- Respect special dietary constraints when selecting seasonings, portion notes, and cautions.
+- Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Mention any specific prep steps for the user group (e.g., cutting grapes in half, removing bones).
 - Do not use added salt or sugar.
 - Start with the recipe title as a level 2 Markdown heading.
@@ -853,9 +930,17 @@ export async function generateReport(timeframe: 'daily' | 'weekly', history: any
   const langInstruction = language === 'zh' ? 'The report MUST be written in Chinese (Simplified).' : 'The report MUST be written in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const specialDietPrompt = getHealthProfilePrompt(profile);
+  const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
   const prompt = `
 Analyze the following meal history for ${profileDescription} over the past ${timeframe} and provide a summary report.
+Special dietary constraints:
+${specialDietPrompt}
+
+Cuisine and flavor preferences:
+${tastePreferencePrompt}
+
 History:
 ${JSON.stringify(history)}
 
@@ -864,6 +949,8 @@ Provide:
 2. Nutritional insights (are they getting enough variety?).
 3. Smart adjustments for future meals based on their rejections and acceptances.
 4. Target-group-specific advice: infant reports must focus on texture and safety; adult reports should focus on balanced nutrition and routine; elderly reports should focus on digestibility, protein, calcium, fiber, hydration, and lower sodium.
+5. If special dietary constraints are present, include conservative food-focused adjustments without making medical claims.
+6. If cuisine and flavor preferences are present, suggest practical ways to keep variety while using common everyday ingredients.
 Use user/target-people wording. Do not assume the user is an infant unless the profile says infant.
 Format as Markdown.
 - ${langInstruction}
