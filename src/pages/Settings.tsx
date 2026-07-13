@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../db';
-import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw, ChevronRight } from 'lucide-react';
+import { User, Globe, Trash2, CheckCircle2, Sparkles, Heart, HeartOff, AlertTriangle, Plus, X, Menu, ArrowUp, ArrowDown, RotateCcw, ChevronRight, Download, Upload } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DEFAULT_NAV_ORDER, NAV_ORDER_CHANGE_EVENT, NAV_ORDER_STORAGE_KEY, loadNavOrder, type NavItemKey } from '../navigation';
 import { HEALTH_CONDITION_OPTIONS, getHealthConditionLabels, normalizeUserProfile, type HealthConditionKey } from '../profile';
@@ -19,6 +19,14 @@ const QWEN_MODEL_OPTIONS = [
   'glm-5.1',
   'qwen3.7-max-preview',
   'qwen3.5-plus-2026-04-20'
+];
+
+const EXPORT_LOCAL_STORAGE_KEYS = [
+  'babyProfile',
+  'aiSettings',
+  TASTE_PREFERENCES_STORAGE_KEY,
+  NAV_ORDER_STORAGE_KEY,
+  'app_language'
 ];
 
 function normalizeSettingsModel(provider: 'google' | 'qwen', value: string) {
@@ -49,6 +57,8 @@ export default function Settings() {
   const [tasteNote, setTasteNote] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [isCleared, setIsCleared] = useState(false);
+  const [dataMessage, setDataMessage] = useState('');
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     try {
@@ -122,6 +132,77 @@ export default function Settings() {
       await db.mealHistory.clear();
       setIsCleared(true);
       setTimeout(() => setIsCleared(false), 2000);
+    }
+  };
+
+  const collectLocalStorageData = () => {
+    const data: Record<string, string> = {};
+    EXPORT_LOCAL_STORAGE_KEYS.forEach(key => {
+      const value = localStorage.getItem(key);
+      if (value !== null) data[key] = value;
+    });
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith('shoppingBought:')) {
+        const value = localStorage.getItem(key);
+        if (value !== null) data[key] = value;
+      }
+    }
+    return data;
+  };
+
+  const handleExportData = async () => {
+    const payload = {
+      app: '今日餐食',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      localStorage: collectLocalStorageData(),
+      tables: {
+        preferences: await db.preferences.toArray(),
+        mealHistory: await db.mealHistory.toArray(),
+        customRecipes: await db.customRecipes.toArray()
+      }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `daily-meals-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setDataMessage(t('dataExported'));
+    setTimeout(() => setDataMessage(''), 2000);
+  };
+
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!window.confirm(t('importDataConfirm'))) return;
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const tables = payload?.tables || {};
+      await db.transaction('rw', db.preferences, db.mealHistory, db.customRecipes, async () => {
+        await db.preferences.clear();
+        await db.mealHistory.clear();
+        await db.customRecipes.clear();
+        if (Array.isArray(tables.preferences) && tables.preferences.length) await db.preferences.bulkAdd(tables.preferences);
+        if (Array.isArray(tables.mealHistory) && tables.mealHistory.length) await db.mealHistory.bulkAdd(tables.mealHistory);
+        if (Array.isArray(tables.customRecipes) && tables.customRecipes.length) await db.customRecipes.bulkAdd(tables.customRecipes);
+      });
+      if (payload?.localStorage && typeof payload.localStorage === 'object') {
+        Object.entries(payload.localStorage).forEach(([key, value]) => {
+          if (typeof value === 'string') localStorage.setItem(key, value);
+        });
+      }
+      setDataMessage(t('dataImported'));
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      console.error(error);
+      setDataMessage(t('importDataFailed'));
+      setTimeout(() => setDataMessage(''), 3000);
     }
   };
 
@@ -481,22 +562,64 @@ export default function Settings() {
               )}
 
               {activeModal === 'data' && (
-                <button
-                  onClick={handleClearHistory}
-                  className="w-full bg-[#FF3B30]/10 text-[#FF3B30] py-3.5 rounded-[20px] font-semibold hover:bg-[#FF3B30]/20 transition-colors active:scale-95 flex items-center justify-center space-x-2"
-                >
-                  {isCleared ? (
-                    <>
-                      <CheckCircle2 size={20} />
-                      <span>{t('historyCleared')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={20} />
-                      <span>{t('clearHistory')}</span>
-                    </>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleExportData}
+                    className="w-full rounded-[22px] bg-[#F2F2F7] p-4 text-left transition active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#007AFF] shadow-sm">
+                        <Download size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-black">{t('exportData')}</p>
+                        <p className="text-sm font-medium text-gray-500">{t('exportDataDesc')}</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => importInputRef.current?.click()}
+                    className="w-full rounded-[22px] bg-[#F2F2F7] p-4 text-left transition active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#34C759] shadow-sm">
+                        <Upload size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-black">{t('importData')}</p>
+                        <p className="text-sm font-medium text-gray-500">{t('importDataDesc')}</p>
+                      </div>
+                    </div>
+                  </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={handleImportData}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={handleClearHistory}
+                    className="w-full bg-[#FF3B30]/10 text-[#FF3B30] py-3.5 rounded-[20px] font-semibold hover:bg-[#FF3B30]/20 transition-colors active:scale-95 flex items-center justify-center space-x-2"
+                  >
+                    {isCleared ? (
+                      <>
+                        <CheckCircle2 size={20} />
+                        <span>{t('historyCleared')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={20} />
+                        <span>{t('clearHistory')}</span>
+                      </>
+                    )}
+                  </button>
+                  {!!dataMessage && (
+                    <p className="text-center text-sm font-semibold text-gray-500">{dataMessage}</p>
                   )}
-                </button>
+                </div>
               )}
             </div>
 
