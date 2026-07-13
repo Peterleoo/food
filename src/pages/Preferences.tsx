@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChefHat, ImagePlus, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ChefHat, ImagePlus, Pencil, Plus, Search, Sparkles, Trash2, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { CustomRecipe, db } from '../db';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -43,6 +43,8 @@ export default function Preferences() {
   const [recipeTitle, setRecipeTitle] = useState('');
   const [recipeContent, setRecipeContent] = useState('');
   const [recipeImages, setRecipeImages] = useState<string[]>([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
@@ -170,6 +172,16 @@ export default function Preferences() {
     { value: 'snack', label: t('snack') },
     { value: 'dinner', label: t('dinner') }
   ];
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredRecipes = useMemo(() => {
+    const list = recipes || [];
+    if (!normalizedSearch) return list;
+    return list.filter(recipe => {
+      const title = recipe.dishName.toLowerCase();
+      const ingredients = recipe.ingredients.join(' ').toLowerCase();
+      return title.includes(normalizedSearch) || ingredients.includes(normalizedSearch);
+    });
+  }, [recipes, normalizedSearch]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 px-2">
@@ -178,14 +190,45 @@ export default function Preferences() {
           <h2 className="text-3xl font-bold tracking-tight text-black">{t('customTitle')}</h2>
           <p className="text-gray-500 font-medium mt-1">{t('customDesc')}</p>
         </div>
-        <button
-          onClick={() => setIsOpen(true)}
-          className="shrink-0 bg-[#007AFF] text-white p-3 rounded-full shadow-sm hover:bg-[#0056b3] transition-colors active:scale-95"
-          title={t('addRecipe')}
-        >
-          <Plus size={22} />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => setIsSearchOpen(prev => !prev)}
+            className={clsx(
+              "bg-white p-3 rounded-full shadow-sm transition-colors active:scale-95",
+              isSearchOpen ? "text-[#007AFF]" : "text-gray-500 hover:text-black"
+            )}
+            title={t('searchRecipe')}
+          >
+            <Search size={22} />
+          </button>
+          <button
+            onClick={() => setIsOpen(true)}
+            className="bg-[#007AFF] text-white p-3 rounded-full shadow-sm hover:bg-[#0056b3] transition-colors active:scale-95"
+            title={t('addRecipe')}
+          >
+            <Plus size={22} />
+          </button>
+        </div>
       </div>
+
+      {isSearchOpen && (
+        <div className="px-2">
+          <div className="flex items-center gap-3 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <Search size={18} className="shrink-0 text-gray-400" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={t('searchRecipePlaceholder')}
+              className="min-w-0 flex-1 bg-transparent text-black placeholder-gray-400 focus:outline-none"
+            />
+            {!!searchQuery && (
+              <button type="button" onClick={() => setSearchQuery('')} className="rounded-full bg-[#F2F2F7] p-1.5 text-gray-400 active:scale-95">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4 px-2">
         {!recipes?.length ? (
@@ -196,8 +239,15 @@ export default function Preferences() {
             <h3 className="text-xl font-semibold text-black mb-2 tracking-tight">{t('noItemsAdded')}</h3>
             <p className="text-gray-500">{t('customDesc')}</p>
           </div>
+        ) : !filteredRecipes.length ? (
+          <div className="bg-white rounded-[28px] p-8 text-center shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="w-16 h-16 bg-[#007AFF]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="text-[#007AFF]" size={30} />
+            </div>
+            <h3 className="text-xl font-semibold text-black tracking-tight">{t('noSearchResults')}</h3>
+          </div>
         ) : (
-          recipes.map(recipe => (
+          filteredRecipes.map(recipe => (
             <div key={recipe.id} className="bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 {(recipe.imageDataList?.[0] || recipe.imageData) && (
