@@ -44,35 +44,15 @@ select {
 }
 
 .page-skeleton {
-  animation: pageSkeletonFade 180ms ease-out both;
-}
-
-.page-transition-content {
-  animation: pageContentEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  transform-origin: top center;
-  will-change: opacity, transform;
-}
-
-@keyframes pageContentEnter {
-  from {
-    opacity: 0.72;
-    transform: translateY(8px) scale(0.997);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  animation: pageSkeletonFade 140ms ease-out both;
 }
 
 @keyframes pageSkeletonFade {
-  0% {
+  from {
     opacity: 0;
   }
-  35% {
-    opacity: 0.42;
-  }
-  100% {
-    opacity: 0;
+  to {
+    opacity: 1;
   }
 }
 
@@ -135,11 +115,6 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-skeleton,
-  .page-transition-content {
-    animation: none;
-  }
-
   .home-flip-card {
     transition: none;
   }
