@@ -73,7 +73,7 @@ select {
 }
 
 .home-flip-card {
-  display: grid;
+  position: relative;
   transform-style: preserve-3d;
   transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -81,16 +81,19 @@ select {
 .home-flip-face {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  grid-area: 1 / 1;
   min-width: 0;
   transform-origin: center center;
+  width: 100%;
 }
 
 .home-flip-front {
+  position: relative;
   pointer-events: auto;
 }
 
 .home-flip-back {
+  inset: 0;
+  position: absolute;
   pointer-events: none;
   transform: rotateY(180deg);
 }
@@ -100,10 +103,14 @@ select {
 }
 
 .home-flip-scene.is-flipped .home-flip-front {
+  inset: 0;
+  position: absolute;
   pointer-events: none;
 }
 
 .home-flip-scene.is-flipped .home-flip-back {
+  inset: auto;
+  position: relative;
   pointer-events: auto;
 }
 

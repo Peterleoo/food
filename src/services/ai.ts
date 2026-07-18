@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CustomRecipe, db } from "../db";
-import { findLocalRecipe, localRecipes, MealType } from "../data/localRecipes";
-import { getHealthProfilePrompt, normalizeUserProfile } from "../profile";
+import { findLocalRecipe, localRecipes, LocalRecipe, MealType } from "../data/localRecipes";
+import { getHealthProfilePrompt, normalizeUserProfile, type UserProfile } from "../profile";
 import { TASTE_PREFERENCES_STORAGE_KEY, getTastePreferencePrompt, normalizeTastePreferences } from "../tastePreferences";
 
 interface AiSettings {
@@ -18,6 +18,162 @@ const QWEN_TEXT_MAX_TOKENS = 900;
 const GEMINI_DAILY_MAX_TOKENS = 1800;
 const GEMINI_SINGLE_MAX_TOKENS = 900;
 const GEMINI_TEXT_MAX_TOKENS = 900;
+
+const adultLocalRecipes: Record<MealType, LocalRecipe[]> = {
+  breakfast: [
+    {
+      mealType: 'breakfast',
+      dishName: '鸡蛋牛奶燕麦早餐',
+      ingredients: ['燕麦 50g/人', '鸡蛋 1个/人', '牛奶 250ml/人', '蓝莓或香蕉 1份/人'],
+      tutorial: `# 鸡蛋牛奶燕麦早餐
+
+## 食材
+- 燕麦 50g/人
+- 鸡蛋 1个/人
+- 牛奶 250ml/人
+- 蓝莓或香蕉 1份/人
+
+## 步骤
+1. 燕麦加牛奶小火煮至浓稠。
+2. 鸡蛋煮熟或煎成少油荷包蛋。
+3. 搭配水果一起食用。
+
+## 营养提示
+主食、蛋白质和水果搭配，适合作为成人早餐。`
+    },
+    {
+      mealType: 'breakfast',
+      dishName: '全麦三明治配豆浆',
+      ingredients: ['全麦面包 2片/人', '鸡蛋 1个/人', '生菜 1份', '番茄 1个', '豆浆 250ml/人'],
+      tutorial: `# 全麦三明治配豆浆
+
+## 食材
+- 全麦面包 2片/人
+- 鸡蛋 1个/人
+- 生菜 1份
+- 番茄 1个
+- 豆浆 250ml/人
+
+## 步骤
+1. 鸡蛋煎熟，番茄切片，生菜洗净。
+2. 将鸡蛋、番茄和生菜夹入全麦面包。
+3. 搭配温豆浆食用。
+
+## 营养提示
+全麦主食搭配蛋白质和蔬菜，饱腹感更稳定。`
+    }
+  ],
+  lunch: [
+    {
+      mealType: 'lunch',
+      dishName: '两菜一汤家常午餐',
+      ingredients: ['米饭 100g/人', '清炒时蔬 1盘', '番茄炒蛋 1盘', '冬瓜肉片汤 1锅'],
+      tutorial: `# 两菜一汤家常午餐
+
+## 食材
+- 米饭 100g/人
+- 清炒时蔬 1盘
+- 番茄炒蛋 1盘
+- 冬瓜肉片汤 1锅
+
+## 步骤
+1. 米饭按人数蒸熟。
+2. 时蔬快炒，少油少盐。
+3. 番茄炒蛋补充蛋白质。
+4. 冬瓜和瘦肉片煮汤，搭配午餐食用。
+
+## 营养提示
+主食、蛋白质、蔬菜和汤水搭配，更接近成人正餐。`
+    },
+    {
+      mealType: 'lunch',
+      dishName: '三菜一汤均衡午餐',
+      ingredients: ['米饭 100g/人', '清蒸鲈鱼 1条', '西兰花炒胡萝卜 1盘', '豆腐青菜汤 1锅', '凉拌黄瓜 1份'],
+      tutorial: `# 三菜一汤均衡午餐
+
+## 食材
+- 米饭 100g/人
+- 清蒸鲈鱼 1条
+- 西兰花炒胡萝卜 1盘
+- 豆腐青菜汤 1锅
+- 凉拌黄瓜 1份
+
+## 步骤
+1. 米饭蒸熟，鲈鱼清蒸至熟透。
+2. 西兰花和胡萝卜快炒。
+3. 豆腐和青菜煮成清汤。
+4. 黄瓜简单凉拌，整体少油少盐。
+
+## 营养提示
+鱼肉、豆制品和蔬菜组合，适合多人家庭午餐。`
+    }
+  ],
+  snack: [
+    {
+      mealType: 'snack',
+      dishName: '酸奶水果加餐',
+      ingredients: ['原味酸奶 150g/人', '水果 1份/人', '坚果 少量'],
+      tutorial: `# 酸奶水果加餐
+
+## 食材
+- 原味酸奶 150g/人
+- 水果 1份/人
+- 坚果 少量
+
+## 步骤
+1. 水果洗净切块。
+2. 搭配原味酸奶。
+3. 成人可加入少量坚果增加口感。
+
+## 营养提示
+加餐以轻量为主，避免影响正餐。`
+    }
+  ],
+  dinner: [
+    {
+      mealType: 'dinner',
+      dishName: '清淡两菜一汤晚餐',
+      ingredients: ['杂粮饭 80g/人', '香菇青菜 1盘', '虾仁豆腐 1盘', '紫菜蛋花汤 1锅'],
+      tutorial: `# 清淡两菜一汤晚餐
+
+## 食材
+- 杂粮饭 80g/人
+- 香菇青菜 1盘
+- 虾仁豆腐 1盘
+- 紫菜蛋花汤 1锅
+
+## 步骤
+1. 杂粮饭提前浸泡后蒸熟。
+2. 香菇和青菜快炒。
+3. 虾仁和豆腐炖煮至熟透。
+4. 紫菜和鸡蛋做成清汤。
+
+## 营养提示
+晚餐保持清淡，减少油脂负担。`
+    },
+    {
+      mealType: 'dinner',
+      dishName: '家常三菜晚餐',
+      ingredients: ['米饭 80g/人', '芹菜牛肉 1盘', '清炒白菜 1盘', '番茄豆腐汤 1锅'],
+      tutorial: `# 家常三菜晚餐
+
+## 食材
+- 米饭 80g/人
+- 芹菜牛肉 1盘
+- 清炒白菜 1盘
+- 番茄豆腐汤 1锅
+
+## 步骤
+1. 米饭按人数蒸熟。
+2. 牛肉切片和芹菜快炒。
+3. 白菜清炒，控制用油。
+4. 番茄和豆腐煮汤，搭配主食食用。
+
+## 营养提示
+晚餐兼顾蛋白质和蔬菜，份量比午餐略轻。`
+    }
+  ]
+};
 
 function getDefaultModel(provider: AiSettings['provider']) {
   return provider === 'qwen' ? 'deepseek-v4-flash' : 'gemini-3-flash-preview';
@@ -364,11 +520,32 @@ function customRecipeToLocal(recipe: CustomRecipe, mealType: MealType) {
   };
 }
 
+function getLocalRecipePool(type: MealType, profile: UserProfile) {
+  return profile.targetGroup === 'infant' ? localRecipes[type] : adultLocalRecipes[type];
+}
+
+function adaptRecipeForProfile(recipe: LocalRecipe & { imageData?: string; imageDataList?: string[] }, profile: UserProfile) {
+  if (profile.targetGroup === 'infant') return recipe;
+
+  const peopleCount = Math.max(1, profile.peopleCount || 1);
+  const targetNote = profile.targetGroup === 'elderly'
+    ? '老年人餐食建议软烂易嚼、少油少盐。'
+    : '成人餐食按正餐结构搭配，午晚餐可采用两菜一汤或三菜一汤。';
+  const servingNote = `按 ${peopleCount} 人准备。`;
+
+  return {
+    ...recipe,
+    ingredients: recipe.ingredients.map(item => item.replace(/\/人/g, peopleCount > 1 ? ` x ${peopleCount}人` : '')),
+    tutorial: `${recipe.tutorial}\n\n## 份量说明\n${servingNote}${targetNote}`
+  };
+}
+
 async function pickMeal(type: MealType, seed: number, likes: string[], dislikes: string[], allergies: string[], rejected: string[], eaten: string[], excluded: string[] = []) {
+  const profile = getBabyProfile();
   const customRecipes = await db.customRecipes
     .filter(recipe => !recipe.mealType || recipe.mealType === 'any' || recipe.mealType === type)
     .toArray();
-  const localPool = localRecipes[type];
+  const localPool = getLocalRecipePool(type, profile);
   const customPool = customRecipes.map(recipe => customRecipeToLocal(recipe, type));
   const recipes = [...customPool, ...localPool].sort((a, b) => {
     const scoreDiff = scoreRecipe(b, likes, dislikes, allergies, rejected, eaten) - scoreRecipe(a, likes, dislikes, allergies, rejected, eaten);
@@ -379,7 +556,8 @@ async function pickMeal(type: MealType, seed: number, likes: string[], dislikes:
   const basePool = viableRecipes.length ? viableRecipes : recipes;
   const uniquePool = basePool.filter(recipe => !excluded.includes(recipe.dishName));
   const pool = uniquePool.length ? uniquePool : basePool;
-  return pool[seed % pool.length] || pickLocalMeal(type, seed, likes, dislikes, allergies, rejected, eaten);
+  const picked = pool[seed % pool.length] || pickLocalMeal(type, seed, likes, dislikes, allergies, rejected, eaten);
+  return adaptRecipeForProfile(picked, profile);
 }
 
 async function getMealContext() {
@@ -538,6 +716,39 @@ function getProfileDescription(profile: any) {
   return `${target}, serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}`;
 }
 
+function getMealStructurePrompt(profile: any) {
+  const normalizedProfile = normalizeUserProfile(profile);
+  const peopleCount = normalizedProfile.peopleCount || 1;
+
+  if (normalizedProfile.targetGroup === 'adult') {
+    return [
+      `Target structure for adults serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}:`,
+      '- Breakfast can be one balanced meal with staple food, protein, and fruit or vegetables.',
+      '- Lunch and dinner should be adult-style complete meals, not infant portions. Prefer a set such as two dishes plus one soup, or three dishes plus one soup when serving multiple people.',
+      '- dishName for lunch/dinner may describe the set, for example "三菜一汤家常午餐" or "两菜一汤清淡晚餐".',
+      '- ingredients should include realistic adult household portions, such as rice 80-120g/person, protein 100-150g/person, vegetables 200-300g total per dish, and soup for the table.',
+      '- Avoid baby-style names, purees, tiny gram amounts, and texture notes meant for toddlers.'
+    ].join('\n');
+  }
+
+  if (normalizedProfile.targetGroup === 'elderly') {
+    return [
+      `Target structure for elderly people serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}:`,
+      '- Breakfast can be a soft balanced meal with staple food and protein.',
+      '- Lunch and dinner should be complete meals, usually one staple, two softer dishes, and one light soup.',
+      '- Use adult household portions but keep dinner lighter; prefer soft, easy-to-chew cooking methods.',
+      '- Keep sodium and oil conservative, and avoid baby/toddler wording.'
+    ].join('\n');
+  }
+
+  return [
+    `Target structure for infants serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}:`,
+    '- Keep portions age-appropriate, soft, fully cooked, and easy to chew or swallow.',
+    '- One compact dish per meal is acceptable for infants.',
+    '- Avoid adult family-style multi-dish sets unless explicitly requested.'
+  ].join('\n');
+}
+
 export async function generateDailyPlan(date: string, language: 'zh' | 'en', refreshSeed = 0) {
   if (!shouldUseAI()) {
     return generateLocalDailyPlan(date, refreshSeed);
@@ -558,6 +769,7 @@ export async function generateDailyPlan(date: string, language: 'zh' | 'en', ref
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const mealStructurePrompt = getMealStructurePrompt(profile);
   const specialDietPrompt = getHealthProfilePrompt(profile);
   const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
@@ -575,6 +787,9 @@ ${specialDietPrompt}
 Cuisine and flavor preferences:
 ${tastePreferencePrompt}
 
+Meal structure and portion guidance:
+${mealStructurePrompt}
+
 Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
@@ -585,7 +800,7 @@ Requirements:
 - Follow cuisine and flavor preferences when possible, but keep the meals practical and healthy.
 - Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
 - Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
-- Provide 4 meals: breakfast, lunch, snack, dinner.
+- Provide 4 meal entries: breakfast, lunch, snack, dinner. For adult or elderly lunch/dinner, each entry can represent a complete meal set rather than a single small dish.
 - Each meal must include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - For each meal, provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
 - ingredients must contain 3-6 concise items.
@@ -668,6 +883,7 @@ export async function generateSingleMeal(date: string, mealType: string, languag
   const langInstruction = language === 'zh' ? 'The response MUST be in Chinese (Simplified).' : 'The response MUST be in English.';
   const profile = getBabyProfile();
   const profileDescription = getProfileDescription(profile);
+  const mealStructurePrompt = getMealStructurePrompt(profile);
   const specialDietPrompt = getHealthProfilePrompt(profile);
   const tastePreferencePrompt = getTastePreferencePrompt(getTastePreferences());
 
@@ -683,6 +899,9 @@ ${specialDietPrompt}
 
 Cuisine and flavor preferences:
 ${tastePreferencePrompt}
+
+Meal structure and portion guidance:
+${mealStructurePrompt}
 
 Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
 Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}

@@ -2,13 +2,11 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# 今日餐食
 
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Peterleoo/food)
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/900a6a4c-ac15-493e-97c1-9aecb7bc9d09
+一个通过 vibecoding 持续迭代出来的每日餐食应用，支持今日餐单、自定义食谱、买菜清单、本地数据导入导出和 AI 辅助生成。
 
 ## Run Locally
 
