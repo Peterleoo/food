@@ -7,7 +7,7 @@ import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, NAV_PATHS, TODAY_NAV_TOGGLE_EVENT
 
 function PageSkeleton() {
   return (
-    <div className="page-skeleton pointer-events-none absolute inset-0 z-20 bg-[#F2F2F7] px-4 pt-4">
+    <div className="page-skeleton pointer-events-none absolute inset-0 z-20 bg-[#F2F2F7]/80 px-4 pt-4">
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="space-y-3 px-2">
           <div className="h-8 w-40 rounded-2xl bg-gray-200/80" />
@@ -56,7 +56,7 @@ export default function Layout() {
     if (previousPath.current === location.pathname) return;
     previousPath.current = location.pathname;
     setIsSwitchingPage(true);
-    const timer = window.setTimeout(() => setIsSwitchingPage(false), 140);
+    const timer = window.setTimeout(() => setIsSwitchingPage(false), 180);
     return () => window.clearTimeout(timer);
   }, [location.pathname]);
 
@@ -87,7 +87,9 @@ export default function Layout() {
   return (
     <div className="app-shell flex h-[100dvh] flex-col overflow-hidden bg-[#F2F2F7] text-black font-sans selection:bg-blue-200">
       <main ref={mainRef} className="app-main relative min-h-0 flex-1 overflow-y-auto p-4 pb-32">
-        <Outlet />
+        <div key={location.pathname} className="page-transition-content">
+          <Outlet />
+        </div>
         {isSwitchingPage && <PageSkeleton />}
       </main>
 
