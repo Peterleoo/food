@@ -62,9 +62,21 @@ export function startDailyMealPlanTask(date: string, language: 'zh' | 'en', refr
 
       await db.transaction('rw', db.mealHistory, async () => {
         const existing = await db.mealHistory.where('date').equals(date).toArray();
-        const existingIds = existing.map(meal => meal.id!).filter(Boolean);
-        if (existingIds.length > 0) {
-          await db.mealHistory.bulkDelete(existingIds);
+        const activeMeals = existing.filter(meal => !meal.archived);
+        const deletableIds = activeMeals
+          .filter(meal => meal.status === 'pending')
+          .map(meal => meal.id!)
+          .filter(Boolean);
+        const archivableIds = activeMeals
+          .filter(meal => meal.status !== 'pending')
+          .map(meal => meal.id!)
+          .filter(Boolean);
+
+        if (deletableIds.length > 0) {
+          await db.mealHistory.bulkDelete(deletableIds);
+        }
+        if (archivableIds.length > 0) {
+          await Promise.all(archivableIds.map(id => db.mealHistory.update(id, { archived: true })));
         }
 
         await db.mealHistory.bulkAdd(
@@ -73,6 +85,7 @@ export function startDailyMealPlanTask(date: string, language: 'zh' | 'en', refr
             mealType: meal.mealType,
             dishName: meal.dishName,
             status: 'pending',
+            archived: false,
             ingredients: meal.ingredients || [],
             tutorial: meal.tutorial,
             imageData: meal.imageData,

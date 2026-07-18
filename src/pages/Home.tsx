@@ -40,7 +40,10 @@ export default function Home() {
   const [isTutorialLoading, setIsTutorialLoading] = useState(false);
 
   const todaysMeals = useLiveQuery(
-    () => db.mealHistory.where('date').equals(today).toArray(),
+    async () => {
+      const meals = await db.mealHistory.where('date').equals(today).toArray();
+      return meals.filter(meal => !meal.archived);
+    },
     [today]
   );
   const isGenerating = mealPlanTask.status === 'running' && mealPlanTask.date === today;
@@ -55,13 +58,27 @@ export default function Home() {
     try {
       const newMeal = await generateSingleMeal(today, mealType, language);
       if (newMeal) {
-        await db.mealHistory.update(id, {
-          dishName: newMeal.dishName,
-          ingredients: newMeal.ingredients,
-          status: 'pending',
-          tutorial: newMeal.tutorial,
-          imageData: newMeal.imageData,
-          imageDataList: newMeal.imageDataList
+        await db.transaction('rw', db.mealHistory, async () => {
+          const currentMeal = await db.mealHistory.get(id);
+          const nextMeal = {
+            date: currentMeal?.date || today,
+            mealType: newMeal.mealType || currentMeal?.mealType || mealType,
+            dishName: newMeal.dishName,
+            ingredients: newMeal.ingredients,
+            status: 'pending' as const,
+            archived: false,
+            tutorial: newMeal.tutorial,
+            imageData: newMeal.imageData,
+            imageDataList: newMeal.imageDataList
+          };
+
+          if (currentMeal && currentMeal.status !== 'pending') {
+            await db.mealHistory.update(id, { archived: true });
+            await db.mealHistory.add(nextMeal);
+            return;
+          }
+
+          await db.mealHistory.update(id, nextMeal);
         });
       }
     } catch (e) {

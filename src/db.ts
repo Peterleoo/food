@@ -16,6 +16,7 @@ export interface MealHistory {
   tutorial?: string;
   imageData?: string;
   imageDataList?: string[];
+  archived?: boolean;
 }
 
 export interface CustomRecipe {
