@@ -11,7 +11,7 @@ export interface MealHistory {
   date: string; // YYYY-MM-DD
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   dishName: string;
-  status: 'eaten' | 'rejected' | 'partial' | 'pending';
+  status: 'eaten' | 'rejected' | 'partial' | 'pending'; // eaten=liked, rejected=disliked
   ingredients: string[];
   tutorial?: string;
   imageData?: string;

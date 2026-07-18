@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { format } from 'date-fns';
 import { zhCN, enUS } from 'date-fns/locale';
-import { CheckCircle2, XCircle, ChefHat, RefreshCw, AlertCircle, Repeat2 } from 'lucide-react';
+import { Heart, HeartOff, ChefHat, RefreshCw, AlertCircle, Repeat2, CheckCircle2 } from 'lucide-react';
 import { db } from '../db';
-import { generateDailyPlan, generateTutorial, generateSingleMeal } from '../services/ai';
+import { generateTutorial, generateSingleMeal } from '../services/ai';
 import TutorialModal from '../components/TutorialModal';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -12,14 +12,15 @@ import { ensureRecipeTitle, extractRecipeSectionItems } from '../recipeDisplay';
 import { createShoppingList, type ShoppingCategory } from '../shoppingList';
 import { normalizeUserProfile } from '../profile';
 import { TODAY_NAV_TOGGLE_EVENT } from '../navigation';
+import { clearMealPlanTaskNotice, getMealPlanTaskSnapshot, startDailyMealPlanTask, subscribeMealPlanTask } from '../mealPlanTask';
 
 export default function Home() {
   const { language, t } = useLanguage();
   const today = format(new Date(), 'yyyy-MM-dd');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [mealPlanTask, setMealPlanTask] = useState(() => getMealPlanTaskSnapshot());
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [errorDialog, setErrorDialog] = useState<null | { title: string; message: string }>(null);
   const [activeView, setActiveView] = useState<'meals' | 'shopping'>('meals');
   const shoppingBoughtStorageKey = `shoppingBought:${today}`;
   const [boughtShoppingItems, setBoughtShoppingItems] = useState<Set<string>>(() => {
@@ -42,40 +43,11 @@ export default function Home() {
     () => db.mealHistory.where('date').equals(today).toArray(),
     [today]
   );
+  const isGenerating = mealPlanTask.status === 'running' && mealPlanTask.date === today;
 
   const handleGeneratePlan = async () => {
-    setIsGenerating(true);
     setError(null);
-    try {
-      const newMeals = await generateDailyPlan(today, language, Date.now());
-      if (newMeals && newMeals.length > 0) {
-        const existing = await db.mealHistory.where('date').equals(today).toArray();
-        const existingIds = existing.map(m => m.id!);
-        if (existingIds.length > 0) {
-          await db.mealHistory.bulkDelete(existingIds);
-        }
-
-        await db.mealHistory.bulkAdd(
-          newMeals.map((m: any) => ({
-            date: today,
-            mealType: m.mealType,
-            dishName: m.dishName,
-            status: 'pending',
-            ingredients: m.ingredients || [],
-            tutorial: m.tutorial,
-            imageData: m.imageData,
-            imageDataList: m.imageDataList
-          }))
-        );
-      } else {
-        setError(t('failedGenerate'));
-      }
-    } catch (err) {
-      console.error(err);
-      setError(t('errorGenerate'));
-    } finally {
-      setIsGenerating(false);
-    }
+    startDailyMealPlanTask(today, language, Date.now());
   };
 
   const handleRegenerateSingle = async (id: number, mealType: string) => {
@@ -99,17 +71,8 @@ export default function Home() {
     }
   };
 
-  const updateMealStatus = async (id: number, status: 'eaten' | 'rejected' | 'partial') => {
-    if (status === 'rejected') {
-      setRejectingId(id);
-      setTimeout(async () => {
-        await db.mealHistory.update(id, { status });
-        setRejectingId(null);
-      }, 480);
-      return;
-    }
-
-    await db.mealHistory.update(id, { status });
+  const updateMealStatus = async (id: number, status: 'eaten' | 'rejected', currentStatus: string) => {
+    await db.mealHistory.update(id, { status: currentStatus === status ? 'pending' : status });
   };
 
   const openTutorial = async (dishName: string, ingredients: string[], existingTutorial?: string, id?: number, imageData?: string, imageDataList?: string[]) => {
@@ -146,7 +109,7 @@ export default function Home() {
     return aOrder - bOrder;
   });
 
-  const visibleMeals = sortedMeals?.filter(meal => meal.status !== 'rejected' || meal.id === rejectingId);
+  const visibleMeals = sortedMeals;
   const dateLabel = language === 'zh'
     ? format(new Date(), 'yyyy/M/d EEE', { locale: zhCN })
     : format(new Date(), 'EEEE, MMMM d', { locale: enUS });
@@ -197,6 +160,27 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(shoppingBoughtStorageKey, JSON.stringify(Array.from(boughtShoppingItems)));
   }, [boughtShoppingItems, shoppingBoughtStorageKey]);
+
+  useEffect(() => {
+    const syncTask = () => setMealPlanTask(getMealPlanTaskSnapshot());
+    syncTask();
+    return subscribeMealPlanTask(syncTask);
+  }, []);
+
+  useEffect(() => {
+    if (mealPlanTask.date !== today) return;
+    if (mealPlanTask.status === 'error' && mealPlanTask.error) {
+      const message = t(mealPlanTask.error);
+      setError(message);
+      setErrorDialog({ title: t('aiFallbackTitle'), message });
+    }
+    if (mealPlanTask.status === 'success') {
+      setError(null);
+      if (mealPlanTask.warning) {
+        setErrorDialog({ title: t('aiFallbackTitle'), message: t('aiFallbackDesc') });
+      }
+    }
+  }, [mealPlanTask, t, today]);
 
   useEffect(() => {
     const handleTodayNavToggle = () => {
@@ -290,10 +274,7 @@ export default function Home() {
               const nutritionTips = extractRecipeSectionItems(meal.tutorial, 'nutritionTips');
               
               return (
-                <div key={meal.id} className={clsx(
-                  "relative bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row sm:items-center gap-4 transition-all",
-                  rejectingId === meal.id && "animate-fly-away"
-                )}>
+                <div key={meal.id} className="relative bg-white rounded-[28px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row sm:items-center gap-4 transition-all">
                   <button
                     onClick={() => handleRegenerateSingle(meal.id!, meal.mealType)}
                     disabled={regeneratingId === meal.id}
@@ -326,7 +307,7 @@ export default function Home() {
                         <span className={clsx(
                           "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md",
                           meal.status === 'eaten' ? "text-[#34C759] bg-[#34C759]/10" :
-                          "text-[#007AFF] bg-[#007AFF]/10"
+                          "text-[#FF3B30] bg-[#FF3B30]/10"
                         )}>
                           {t(meal.status as any)}
                         </span>
@@ -352,24 +333,24 @@ export default function Home() {
                     
                     <div className="flex space-x-2 flex-1 sm:flex-none">
                       <button
-                        onClick={() => updateMealStatus(meal.id!, 'eaten')}
+                        onClick={() => updateMealStatus(meal.id!, 'eaten', meal.status)}
                         className={clsx(
                           "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
                           meal.status === 'eaten' ? "bg-[#34C759]/10 text-[#34C759]" : "bg-[#F2F2F7] text-gray-400 hover:bg-[#34C759]/10 hover:text-[#34C759]"
                         )}
                         title={t('eaten')}
                       >
-                        <CheckCircle2 size={22} />
+                        <Heart size={22} />
                       </button>
                       <button
-                        onClick={() => updateMealStatus(meal.id!, 'rejected')}
+                        onClick={() => updateMealStatus(meal.id!, 'rejected', meal.status)}
                         className={clsx(
                           "flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-full transition-colors active:scale-95",
-                          "bg-[#F2F2F7] text-gray-400 hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]"
+                          meal.status === 'rejected' ? "bg-[#FF3B30]/10 text-[#FF3B30]" : "bg-[#F2F2F7] text-gray-400 hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]"
                         )}
                         title={t('rejected')}
                       >
-                        <XCircle size={22} />
+                        <HeartOff size={22} />
                       </button>
                     </div>
                   </div>
@@ -439,6 +420,28 @@ export default function Home() {
         imageDataList={tutorialImages}
         isLoading={isTutorialLoading}
       />
+
+      {errorDialog && (
+        <div className="pwa-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#FF3B30]/10 text-[#FF3B30]">
+              <AlertCircle size={24} />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-black">{errorDialog.title}</h3>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-gray-500">{errorDialog.message}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorDialog(null);
+                clearMealPlanTaskNotice();
+              }}
+              className="mt-6 w-full rounded-full bg-[#007AFF] px-5 py-3 text-sm font-bold text-white transition-colors active:scale-95"
+            >
+              {t('close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

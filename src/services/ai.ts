@@ -13,9 +13,9 @@ interface AiSettings {
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 const AI_TIMEOUT_MS = 45000;
-const QWEN_JSON_MAX_TOKENS = 1800;
+const QWEN_JSON_MAX_TOKENS = 5000;
 const QWEN_TEXT_MAX_TOKENS = 900;
-const GEMINI_DAILY_MAX_TOKENS = 1800;
+const GEMINI_DAILY_MAX_TOKENS = 4500;
 const GEMINI_SINGLE_MAX_TOKENS = 900;
 const GEMINI_TEXT_MAX_TOKENS = 900;
 
@@ -66,46 +66,108 @@ const adultLocalRecipes: Record<MealType, LocalRecipe[]> = {
   lunch: [
     {
       mealType: 'lunch',
-      dishName: '两菜一汤家常午餐',
-      ingredients: ['米饭 100g/人', '清炒时蔬 1盘', '番茄炒蛋 1盘', '冬瓜肉片汤 1锅'],
-      tutorial: `# 两菜一汤家常午餐
+      dishName: '番茄炒蛋',
+      ingredients: ['番茄 2个', '鸡蛋 3个', '葱花 少量', '食用油 适量'],
+      tutorial: `# 番茄炒蛋
 
 ## 食材
-- 米饭 100g/人
-- 清炒时蔬 1盘
-- 番茄炒蛋 1盘
-- 冬瓜肉片汤 1锅
+- 番茄 2个
+- 鸡蛋 3个
+- 葱花 少量
+- 食用油 适量
 
 ## 步骤
-1. 米饭按人数蒸熟。
-2. 时蔬快炒，少油少盐。
-3. 番茄炒蛋补充蛋白质。
-4. 冬瓜和瘦肉片煮汤，搭配午餐食用。
+1. 番茄切块，鸡蛋打散备用。
+2. 鸡蛋先炒至凝固后盛出。
+3. 番茄炒出汁后放回鸡蛋，少量调味。
+4. 撒葱花后出锅。
 
 ## 营养提示
-主食、蛋白质、蔬菜和汤水搭配，更接近成人正餐。`
+番茄和鸡蛋搭配，补充蛋白质和蔬菜。`
     },
     {
       mealType: 'lunch',
-      dishName: '三菜一汤均衡午餐',
-      ingredients: ['米饭 100g/人', '清蒸鲈鱼 1条', '西兰花炒胡萝卜 1盘', '豆腐青菜汤 1锅', '凉拌黄瓜 1份'],
-      tutorial: `# 三菜一汤均衡午餐
+      dishName: '清炒时蔬',
+      ingredients: ['小白菜 300g', '胡萝卜 半根', '蒜 2瓣', '食用油 适量'],
+      tutorial: `# 清炒时蔬
 
 ## 食材
-- 米饭 100g/人
-- 清蒸鲈鱼 1条
-- 西兰花炒胡萝卜 1盘
-- 豆腐青菜汤 1锅
-- 凉拌黄瓜 1份
+- 小白菜 300g
+- 胡萝卜 半根
+- 蒜 2瓣
+- 食用油 适量
 
 ## 步骤
-1. 米饭蒸熟，鲈鱼清蒸至熟透。
-2. 西兰花和胡萝卜快炒。
-3. 豆腐和青菜煮成清汤。
-4. 黄瓜简单凉拌，整体少油少盐。
+1. 小白菜洗净切段，胡萝卜切薄片。
+2. 热锅少油，蒜末炒香。
+3. 放入胡萝卜和小白菜快炒至断生。
+4. 简单调味后出锅。
 
 ## 营养提示
-鱼肉、豆制品和蔬菜组合，适合多人家庭午餐。`
+绿叶菜搭配少量根茎蔬菜，增加膳食纤维。`
+    },
+    {
+      mealType: 'lunch',
+      dishName: '冬瓜肉片汤',
+      ingredients: ['冬瓜 400g', '瘦肉 150g', '姜 2片', '葱花 少量'],
+      tutorial: `# 冬瓜肉片汤
+
+## 食材
+- 冬瓜 400g
+- 瘦肉 150g
+- 姜 2片
+- 葱花 少量
+
+## 步骤
+1. 冬瓜去皮切片，瘦肉切薄片。
+2. 锅中加水和姜片煮开，放入冬瓜。
+3. 冬瓜煮软后下肉片，煮至变色熟透。
+4. 撒葱花，少量调味后食用。
+
+## 营养提示
+汤菜清淡，适合搭配午餐中的主食和其他菜。`
+    },
+    {
+      mealType: 'lunch',
+      dishName: '清蒸鲈鱼',
+      ingredients: ['鲈鱼 1条', '姜丝 适量', '葱丝 适量', '蒸鱼豉油 适量'],
+      tutorial: `# 清蒸鲈鱼
+
+## 食材
+- 鲈鱼 1条
+- 姜丝 适量
+- 葱丝 适量
+- 蒸鱼豉油 适量
+
+## 步骤
+1. 鲈鱼处理干净，两面放姜丝。
+2. 水开后上锅蒸 8-10 分钟至熟。
+3. 倒掉多余汤汁，铺葱丝。
+4. 淋少量蒸鱼豉油，热油激香即可。
+
+## 营养提示
+鱼肉提供优质蛋白，蒸制方式更清淡。`
+    },
+    {
+      mealType: 'lunch',
+      dishName: '豆腐青菜汤',
+      ingredients: ['嫩豆腐 1盒', '青菜 200g', '鸡蛋 1个', '葱花 少量'],
+      tutorial: `# 豆腐青菜汤
+
+## 食材
+- 嫩豆腐 1盒
+- 青菜 200g
+- 鸡蛋 1个
+- 葱花 少量
+
+## 步骤
+1. 豆腐切块，青菜洗净切段。
+2. 锅中加水煮开，放入豆腐。
+3. 加入青菜煮软，再淋入蛋液。
+4. 撒葱花，少量调味后出锅。
+
+## 营养提示
+豆腐和鸡蛋补充蛋白质，青菜增加膳食纤维。`
     }
   ],
   snack: [
@@ -132,45 +194,108 @@ const adultLocalRecipes: Record<MealType, LocalRecipe[]> = {
   dinner: [
     {
       mealType: 'dinner',
-      dishName: '清淡两菜一汤晚餐',
-      ingredients: ['杂粮饭 80g/人', '香菇青菜 1盘', '虾仁豆腐 1盘', '紫菜蛋花汤 1锅'],
-      tutorial: `# 清淡两菜一汤晚餐
+      dishName: '香菇青菜',
+      ingredients: ['青菜 300g', '鲜香菇 6朵', '蒜 2瓣', '食用油 适量'],
+      tutorial: `# 香菇青菜
 
 ## 食材
-- 杂粮饭 80g/人
-- 香菇青菜 1盘
-- 虾仁豆腐 1盘
-- 紫菜蛋花汤 1锅
+- 青菜 300g
+- 鲜香菇 6朵
+- 蒜 2瓣
+- 食用油 适量
 
 ## 步骤
-1. 杂粮饭提前浸泡后蒸熟。
-2. 香菇和青菜快炒。
-3. 虾仁和豆腐炖煮至熟透。
-4. 紫菜和鸡蛋做成清汤。
+1. 青菜洗净，香菇切片。
+2. 热锅少油，蒜末炒香。
+3. 放入香菇炒软，再加入青菜。
+4. 快炒至断生，少量调味后出锅。
 
 ## 营养提示
-晚餐保持清淡，减少油脂负担。`
+晚餐增加绿叶菜，有助于保持清淡和饱腹感。`
     },
     {
       mealType: 'dinner',
-      dishName: '家常三菜晚餐',
-      ingredients: ['米饭 80g/人', '芹菜牛肉 1盘', '清炒白菜 1盘', '番茄豆腐汤 1锅'],
-      tutorial: `# 家常三菜晚餐
+      dishName: '虾仁豆腐',
+      ingredients: ['虾仁 150g', '嫩豆腐 1盒', '豌豆 少量', '姜丝 少量'],
+      tutorial: `# 虾仁豆腐
 
 ## 食材
-- 米饭 80g/人
-- 芹菜牛肉 1盘
-- 清炒白菜 1盘
-- 番茄豆腐汤 1锅
+- 虾仁 150g
+- 嫩豆腐 1盒
+- 豌豆 少量
+- 姜丝 少量
 
 ## 步骤
-1. 米饭按人数蒸熟。
-2. 牛肉切片和芹菜快炒。
-3. 白菜清炒，控制用油。
-4. 番茄和豆腐煮汤，搭配主食食用。
+1. 虾仁去虾线，豆腐切块。
+2. 姜丝炝锅后放入虾仁炒至变色。
+3. 加入豆腐和少量水，小火煮 3-5 分钟。
+4. 放入豌豆煮熟，少量调味后出锅。
 
 ## 营养提示
-晚餐兼顾蛋白质和蔬菜，份量比午餐略轻。`
+虾仁和豆腐提供优质蛋白，口感相对清爽。`
+    },
+    {
+      mealType: 'dinner',
+      dishName: '紫菜蛋花汤',
+      ingredients: ['紫菜 适量', '鸡蛋 1个', '虾皮 少量', '葱花 少量'],
+      tutorial: `# 紫菜蛋花汤
+
+## 食材
+- 紫菜 适量
+- 鸡蛋 1个
+- 虾皮 少量
+- 葱花 少量
+
+## 步骤
+1. 紫菜剪小块，鸡蛋打散。
+2. 锅中加水煮开，放入紫菜和虾皮。
+3. 转小火淋入蛋液形成蛋花。
+4. 撒葱花，少量调味即可。
+
+## 营养提示
+汤品轻量，适合晚餐搭配其他菜。`
+    },
+    {
+      mealType: 'dinner',
+      dishName: '芹菜牛肉',
+      ingredients: ['牛肉 180g', '芹菜 250g', '姜丝 少量', '淀粉 少量'],
+      tutorial: `# 芹菜牛肉
+
+## 食材
+- 牛肉 180g
+- 芹菜 250g
+- 姜丝 少量
+- 淀粉 少量
+
+## 步骤
+1. 牛肉切片，用少量淀粉抓匀。
+2. 芹菜切段，姜丝备用。
+3. 牛肉先快炒至变色后盛出。
+4. 芹菜炒香后放回牛肉，翻炒均匀。
+
+## 营养提示
+牛肉补充铁和蛋白质，芹菜增加蔬菜摄入。`
+    },
+    {
+      mealType: 'dinner',
+      dishName: '番茄豆腐汤',
+      ingredients: ['番茄 2个', '嫩豆腐 1盒', '金针菇 100g', '葱花 少量'],
+      tutorial: `# 番茄豆腐汤
+
+## 食材
+- 番茄 2个
+- 嫩豆腐 1盒
+- 金针菇 100g
+- 葱花 少量
+
+## 步骤
+1. 番茄切块，豆腐切块，金针菇去根洗净。
+2. 番茄先炒出汁，加水煮开。
+3. 放入豆腐和金针菇煮熟。
+4. 撒葱花，少量调味后出锅。
+
+## 营养提示
+豆腐汤清淡易入口，适合晚餐补充水分和蛋白质。`
     }
   ]
 };
@@ -267,6 +392,29 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return window.btoa(binary);
 }
 
+function cleanJsonText(value: string) {
+  const trimmed = String(value || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/i, '')
+    .trim();
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+  return trimmed;
+}
+
+function parseJsonObject<T = any>(value: string, label: string): T | null {
+  try {
+    return JSON.parse(cleanJsonText(value || '{}')) as T;
+  } catch (error) {
+    console.warn(`${label} returned invalid JSON; using local fallback.`, error);
+    return null;
+  }
+}
+
 async function qwenChat(prompt: string, expectJson = false) {
   const settings = getAiSettings();
   const controller = new AbortController();
@@ -286,7 +434,7 @@ async function qwenChat(prompt: string, expectJson = false) {
           {
             role: 'system',
             content: expectJson
-              ? 'You are a user meal planning assistant. Return only valid JSON with no markdown.'
+              ? 'You are a user meal planning assistant. Return only valid JSON with no markdown. Every string value must be single-line JSON text with no raw line breaks.'
               : 'You are a user meal planning assistant.'
           },
           { role: 'user', content: prompt }
@@ -487,8 +635,9 @@ function normalizeGeneratedMeal(meal: GeneratedMealInput, language: 'zh' | 'en',
 }
 
 function normalizeGeneratedMeals(meals: GeneratedMealInput[], language: 'zh' | 'en') {
+  const fallbackMealSlots = getDailyMealSlots(getBabyProfile());
   return meals
-    .map((meal, index) => normalizeGeneratedMeal(meal, language, mealTypes[index] || 'breakfast'))
+    .map((meal, index) => normalizeGeneratedMeal(meal, language, fallbackMealSlots[index] || mealTypes[index % mealTypes.length] || 'breakfast'))
     .filter(meal => meal.dishName);
 }
 
@@ -524,13 +673,25 @@ function getLocalRecipePool(type: MealType, profile: UserProfile) {
   return profile.targetGroup === 'infant' ? localRecipes[type] : adultLocalRecipes[type];
 }
 
+function getDailyMealSlots(profile: UserProfile): MealType[] {
+  if (profile.targetGroup === 'infant') return mealTypes;
+
+  const peopleCount = Math.max(1, profile.peopleCount || 1);
+  const mainDishCount = peopleCount === 1 ? 2 : peopleCount === 2 ? 3 : 4;
+  return [
+    'breakfast' as MealType,
+    ...Array.from({ length: mainDishCount }, () => 'lunch' as MealType),
+    ...Array.from({ length: mainDishCount }, () => 'dinner' as MealType)
+  ];
+}
+
 function adaptRecipeForProfile(recipe: LocalRecipe & { imageData?: string; imageDataList?: string[] }, profile: UserProfile) {
   if (profile.targetGroup === 'infant') return recipe;
 
   const peopleCount = Math.max(1, profile.peopleCount || 1);
   const targetNote = profile.targetGroup === 'elderly'
     ? '老年人餐食建议软烂易嚼、少油少盐。'
-    : '成人餐食按正餐结构搭配，午晚餐可采用两菜一汤或三菜一汤。';
+    : '成人午晚餐按正餐结构搭配，每张卡片只保留一道菜或一份汤。';
   const servingNote = `按 ${peopleCount} 人准备。`;
 
   return {
@@ -578,11 +739,13 @@ async function getMealContext() {
 async function generateLocalDailyPlan(date: string, refreshSeed = 0) {
   const { likes, dislikes, allergies, rejected, eaten } = await getMealContext();
   const seedBase = date.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) + refreshSeed;
+  const profile = getBabyProfile();
+  const mealSlots = getDailyMealSlots(profile);
 
   const usedDishNames: string[] = [];
   const meals = [];
 
-  for (const [index, mealType] of mealTypes.entries()) {
+  for (const [index, mealType] of mealSlots.entries()) {
     const recipe = await pickMeal(mealType, seedBase + index, likes, dislikes, allergies, rejected, eaten, usedDishNames);
     usedDishNames.push(recipe.dishName);
     meals.push({
@@ -595,6 +758,12 @@ async function generateLocalDailyPlan(date: string, refreshSeed = 0) {
     });
   }
 
+  return meals;
+}
+
+async function generateAiFallbackDailyPlan(date: string, refreshSeed = 0) {
+  const meals = await generateLocalDailyPlan(date, refreshSeed);
+  (meals as any).__aiFallback = true;
   return meals;
 }
 
@@ -617,34 +786,34 @@ async function generateLocalSingleMeal(mealType: string, date: string) {
 }
 
 function generateLocalReport(history: any[], language: 'zh' | 'en') {
-  const eaten = history.filter(item => item.status === 'eaten');
-  const rejected = history.filter(item => item.status === 'rejected');
+  const liked = history.filter(item => item.status === 'eaten');
+  const disliked = history.filter(item => item.status === 'rejected');
   const partial = history.filter(item => item.status === 'partial');
   const total = history.length || 1;
-  const acceptanceRate = Math.round((eaten.length / total) * 100);
+  const preferenceRate = Math.round((liked.length / total) * 100);
   const profile = getBabyProfile();
   const normalizedProfile = normalizeUserProfile(profile);
   const target = getTargetGroupLabel(normalizedProfile.targetGroup);
 
   if (language === 'zh') {
     const advice = target === 'elderly'
-      ? '优先关注易消化、优质蛋白、钙和膳食纤维的搭配，减少高盐高油食物。对被拒绝的菜品，可以调整软硬度、温度和调味强度，让餐食更容易入口。'
+      ? '优先关注易消化、优质蛋白、钙和膳食纤维的搭配，减少高盐高油食物。对不喜欢的菜品，可以调整软硬度、温度和调味强度，让餐食更容易入口。'
       : target === 'adult'
-        ? '优先关注主食、蛋白质、蔬菜和健康脂肪的均衡，结合实际作息控制餐量。对被拒绝的菜品，可以调整烹饪方式、口味层次或替换相近食材。'
-        : '优先保留用户接受度高的软饭、粥、面和蒸煮类食物。对被拒绝的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。';
+        ? '优先关注主食、蛋白质、蔬菜和健康脂肪的均衡，结合实际作息控制餐量。对不喜欢的菜品，可以调整烹饪方式、口味层次或替换相近食材。'
+        : '优先保留用户喜欢的软饭、粥、面和蒸煮类食物。对不喜欢的菜品，可以更换相近食材或改变形态，比如从块状改成泥状、从单一蔬菜改成粥饭搭配。';
     const nextPlan = target === 'elderly'
-      ? '下一次餐单建议保持少油少盐、蛋白质充足、蔬菜柔软易嚼，并避免重复近期被拒绝的菜名。'
+      ? '下一次餐单建议保持少油少盐、蛋白质充足、蔬菜柔软易嚼，并减少近期不喜欢的菜名或相近做法。'
       : target === 'adult'
-        ? '下一次餐单建议保持主食、蛋白质和蔬菜的组合，结合偏好增加变化，并避免重复近期被拒绝的菜名。'
-        : '继续保持主食、蛋白质和蔬菜的组合，注意食材大小和软硬度，并避免重复近期被拒绝的菜名。';
+        ? '下一次餐单建议保持主食、蛋白质和蔬菜的组合，结合喜欢的口味增加变化，并减少近期不喜欢的菜名或相近做法。'
+        : '继续保持主食、蛋白质和蔬菜的组合，注意食材大小和软硬度，并减少近期不喜欢的菜名或相近做法。';
 
-    return `## 饮食概览
+    return `## 喜好概览
 
 - 记录餐数：${history.length}
-- 已吃：${eaten.length}
-- 部分接受：${partial.length}
-- 拒绝：${rejected.length}
-- 接受率：${acceptanceRate}%
+- 喜欢：${liked.length}
+- 一般：${partial.length}
+- 不喜欢：${disliked.length}
+- 喜欢占比：${preferenceRate}%
 
 ## 调整建议
 
@@ -656,23 +825,23 @@ ${nextPlan}`;
   }
 
   const advice = target === 'elderly'
-    ? 'Prioritize easy-to-digest meals with quality protein, calcium, fiber, and lower sodium. For rejected meals, adjust texture, temperature, and seasoning intensity.'
+    ? 'Prioritize easy-to-digest meals with quality protein, calcium, fiber, and lower sodium. For disliked meals, adjust texture, temperature, and seasoning intensity.'
     : target === 'adult'
-      ? 'Prioritize balanced meals with carbohydrates, protein, vegetables, and healthy fats. For rejected meals, adjust cooking methods, flavor balance, or use similar ingredients.'
-      : 'Keep soft rice, porridge, noodles, steamed dishes, and foods with a good acceptance history. For rejected meals, try similar ingredients in a softer texture or a different format.';
+      ? 'Prioritize balanced meals with carbohydrates, protein, vegetables, and healthy fats. For disliked meals, adjust cooking methods, flavor balance, or use similar ingredients.'
+      : 'Keep soft rice, porridge, noodles, steamed dishes, and foods with liked history. For disliked meals, try similar ingredients in a softer texture or a different format.';
   const nextPlan = target === 'elderly'
-    ? 'Keep meals lower in oil and sodium, with enough protein and soft vegetables, while avoiding recently rejected dishes.'
+    ? 'Keep meals lower in oil and sodium, with enough protein and soft vegetables, while reducing recently disliked dishes.'
     : target === 'adult'
-      ? 'Keep pairing carbohydrates, protein, and vegetables with more variety, while avoiding recently rejected dishes.'
-      : 'Keep pairing carbohydrates, protein, and vegetables while paying attention to texture, serving size, and recently rejected dishes.';
+      ? 'Keep pairing carbohydrates, protein, and vegetables with more variety, while reducing recently disliked dishes.'
+      : 'Keep pairing carbohydrates, protein, and vegetables while paying attention to texture, serving size, and recently disliked dishes.';
 
-  return `## Meal Overview
+  return `## Preference Overview
 
 - Records: ${history.length}
-- Eaten: ${eaten.length}
-- Partially accepted: ${partial.length}
-- Rejected: ${rejected.length}
-- Acceptance rate: ${acceptanceRate}%
+- Liked: ${liked.length}
+- Neutral: ${partial.length}
+- Disliked: ${disliked.length}
+- Liked share: ${preferenceRate}%
 
 ## Suggestions
 
@@ -724,9 +893,12 @@ function getMealStructurePrompt(profile: any) {
     return [
       `Target structure for adults serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}:`,
       '- Breakfast can be one balanced meal with staple food, protein, and fruit or vegetables.',
-      '- Lunch and dinner should be adult-style complete meals, not infant portions. Prefer a set such as two dishes plus one soup, or three dishes plus one soup when serving multiple people.',
-      '- dishName for lunch/dinner may describe the set, for example "三菜一汤家常午餐" or "两菜一汤清淡晚餐".',
-      '- ingredients should include realistic adult household portions, such as rice 80-120g/person, protein 100-150g/person, vegetables 200-300g total per dish, and soup for the table.',
+      '- Lunch and dinner should be made of multiple separate recipe entries. Each entry is exactly one dish or one soup, and will become its own card.',
+      '- Do not combine dishes into one entry. Do not use dishName such as "一荤一素", "两菜一汤", "三菜一汤", "家常午餐", or "均衡晚餐".',
+      '- For lunch and dinner, provide 1-2 separate entries for 1 person, 3 separate entries for 2 people, or 4 separate entries for 3+ people. Use the same mealType for each dish in that meal.',
+      '- For 1 adult, one dish alone is acceptable when it is balanced; one dish plus one soup is also acceptable. Do not force two dishes and one soup.',
+      '- Do not include snack by default for adults unless the user explicitly asks for snack.',
+      '- Each dish should have its own ingredients and steps. Use realistic adult household portions, such as protein 100-150g/person, vegetables 200-300g per dish, and soup for the table.',
       '- Avoid baby-style names, purees, tiny gram amounts, and texture notes meant for toddlers.'
     ].join('\n');
   }
@@ -735,7 +907,11 @@ function getMealStructurePrompt(profile: any) {
     return [
       `Target structure for elderly people serving ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}:`,
       '- Breakfast can be a soft balanced meal with staple food and protein.',
-      '- Lunch and dinner should be complete meals, usually one staple, two softer dishes, and one light soup.',
+      '- Lunch and dinner should be made of multiple separate recipe entries. Each entry is exactly one softer dish or one light soup, and will become its own card.',
+      '- Do not combine dishes into one entry. Do not use dishName such as "一荤一素", "两菜一汤", "三菜一汤", "家常午餐", or "均衡晚餐".',
+      '- For lunch and dinner, provide 1-2 separate entries for 1 person, 3 separate entries for 2 people, or 4 separate entries for 3+ people. Use the same mealType for each dish in that meal.',
+      '- For 1 elderly person, one soft balanced dish alone is acceptable; one dish plus one light soup is also acceptable. Do not force two dishes and one soup.',
+      '- Do not include snack by default for elderly people unless the user explicitly asks for snack.',
       '- Use adult household portions but keep dinner lighter; prefer soft, easy-to-chew cooking methods.',
       '- Keep sodium and oil conservative, and avoid baby/toddler wording.'
     ].join('\n');
@@ -759,7 +935,7 @@ export async function generateDailyPlan(date: string, language: 'zh' | 'en', ref
   const dislikes = prefs.filter(p => p.type === 'dislike').map(p => p.item);
   const allergies = prefs.filter(p => p.type === 'allergy').map(p => p.item);
 
-  // Get recent history to avoid repetition and learn from rejections
+  // Get recent history to avoid repetition and learn from preference feedback
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const recentHistory = await db.mealHistory.where('date').aboveOrEqual(threeDaysAgo).toArray();
 
@@ -790,8 +966,8 @@ ${tastePreferencePrompt}
 Meal structure and portion guidance:
 ${mealStructurePrompt}
 
-Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
-Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
+Recently disliked meals (avoid these or similar): ${rejected.join(', ') || 'None'}
+Recently liked meals (use as preference signals, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
@@ -800,9 +976,14 @@ Requirements:
 - Follow cuisine and flavor preferences when possible, but keep the meals practical and healthy.
 - Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
 - Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
-- Provide 4 meal entries: breakfast, lunch, snack, dinner. For adult or elderly lunch/dinner, each entry can represent a complete meal set rather than a single small dish.
+- For infants, provide 4 meal entries: breakfast, lunch, snack, dinner.
+- For adults or elderly people, provide breakfast and a people-count-aware number of separate lunch/dinner entries. Use 1-2 lunch entries and 1-2 dinner entries for 1 person, 3 entries for 2 people, and 4 entries for 3+ people. Do not include snack by default. Lunch and dinner entries must each be one dish or one soup only, not a combined meal set.
+- For 1 person, a single balanced dish is acceptable; one dish plus one soup is also acceptable. Do not force two dishes and one soup.
+- Each lunch or dinner dish must be a separate JSON object with its own dishName, ingredients, steps, nutritionTips, and cautions.
+- Do not put "一荤一素", "两菜一汤", "三菜一汤", "家常午餐", "均衡晚餐", or multiple dish names in one dishName.
 - Each meal must include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - For each meal, provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
+- Every JSON string value must be single-line text. Do not put raw line breaks inside any string value.
 - ingredients must contain 3-6 concise items.
 - steps must contain 3-4 short practical cooking steps, one action per item.
 - nutritionTips must contain exactly 1 short nutrition note.
@@ -815,9 +996,10 @@ Requirements:
   try {
     if (getAiSettings().provider === 'qwen') {
       const content = await qwenChat(prompt, true);
-      const data = JSON.parse(content || '{}');
+      const data = parseJsonObject<{ meals?: GeneratedMealInput[] }>(content, 'Qwen daily meal plan');
+      if (!data) return generateAiFallbackDailyPlan(date, refreshSeed);
       const meals = normalizeGeneratedMeals(data.meals || [], language);
-      return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
+      return meals.length ? meals : generateAiFallbackDailyPlan(date, refreshSeed);
     }
 
     const response = await withTimeout(getAI().models.generateContent({
@@ -851,16 +1033,17 @@ Requirements:
       }
     }));
 
-    const data = JSON.parse(response.text || '{}');
+    const data = parseJsonObject<{ meals?: GeneratedMealInput[] }>(response.text || '{}', 'Google daily meal plan');
+    if (!data) return generateAiFallbackDailyPlan(date, refreshSeed);
     const meals = normalizeGeneratedMeals(data.meals || [], language);
-    return meals.length ? meals : generateLocalDailyPlan(date, refreshSeed);
+    return meals.length ? meals : generateAiFallbackDailyPlan(date, refreshSeed);
   } catch (e) {
     if (e instanceof Error && e.message === 'AI request timed out') {
       console.warn("AI meal plan timed out; using local fallback.");
     } else {
       console.error("Failed to generate AI meal plan", e);
     }
-    return generateLocalDailyPlan(date, refreshSeed);
+    return generateAiFallbackDailyPlan(date, refreshSeed);
   }
 }
 
@@ -903,8 +1086,8 @@ ${tastePreferencePrompt}
 Meal structure and portion guidance:
 ${mealStructurePrompt}
 
-Recently rejected meals (avoid these or similar): ${rejected.join(', ') || 'None'}
-Recently eaten meals (they like these, but don't repeat exactly): ${eaten.join(', ') || 'None'}
+Recently disliked meals (avoid these or similar): ${rejected.join(', ') || 'None'}
+Recently liked meals (use as preference signals, but don't repeat exactly): ${eaten.join(', ') || 'None'}
 
 Requirements:
 - Meals must be healthy, low in sodium and sugar, suitable for the target people, and nutritionally balanced.
@@ -915,6 +1098,7 @@ Requirements:
 - Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Include complete recipe details because the generated menu will be saved locally and viewed later without another AI call.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions.
+- Every JSON string value must be single-line text. Do not put raw line breaks inside any string value.
 - ingredients must contain 3-6 concise items.
 - steps must contain 3-4 short practical cooking steps, one action per item.
 - nutritionTips must contain exactly 1 short nutrition note.
@@ -927,7 +1111,8 @@ Requirements:
   try {
     if (getAiSettings().provider === 'qwen') {
       const content = await qwenChat(prompt, true);
-      const meal = JSON.parse(content || '{}');
+      const meal = parseJsonObject<GeneratedMealInput>(content, 'Qwen single meal');
+      if (!meal) return generateLocalSingleMeal(mealType, date);
       return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
     }
 
@@ -953,7 +1138,8 @@ Requirements:
       }
     }));
 
-    const meal = JSON.parse(response.text || '{}');
+    const meal = parseJsonObject<GeneratedMealInput>(response.text || '{}', 'Google single meal');
+    if (!meal) return generateLocalSingleMeal(mealType, date);
     return normalizeGeneratedMeal(meal, language, normalizeMealType(meal.mealType, mealType.toLowerCase() as MealType));
   } catch (e) {
     console.error("Failed to parse single meal JSON", e);
@@ -1012,6 +1198,7 @@ Requirements:
 - Respect special dietary constraints when selecting ingredients, seasonings, portions, and cooking methods.
 - Keep medical guidance conservative and food-focused. Do not claim treatment, cure, or diagnosis.
 - Provide these fixed JSON fields: mealType, dishName, ingredients, steps, nutritionTips, cautions, audience.
+- Every JSON string value must be single-line text. Do not put raw line breaks inside any string value.
 - ingredients must contain 3-6 concise items.
 - steps must contain 3-4 short practical cooking steps, one action per item.
 - nutritionTips must contain exactly 1 short note.
@@ -1024,7 +1211,8 @@ Requirements:
 
   if (getAiSettings().provider === 'qwen') {
     const content = await qwenChat(prompt, true);
-    const meal = JSON.parse(content || '{}');
+    const meal = parseJsonObject<GeneratedMealInput>(content, 'Qwen custom recipe draft');
+    if (!meal) throw new Error('AI returned invalid JSON');
     return normalizeGeneratedRecipeDraft(meal, requestedMealType);
   }
 
@@ -1051,7 +1239,8 @@ Requirements:
     }
   }));
 
-  const meal = JSON.parse(response.text || '{}');
+  const meal = parseJsonObject<GeneratedMealInput>(response.text || '{}', 'Google custom recipe draft');
+  if (!meal) throw new Error('AI returned invalid JSON');
   return normalizeGeneratedRecipeDraft(meal, requestedMealType);
 }
 
@@ -1154,6 +1343,7 @@ export async function generateReport(timeframe: 'daily' | 'weekly', history: any
 
   const prompt = `
 Analyze the following meal history for ${profileDescription} over the past ${timeframe} and provide a summary report.
+Status meaning: status "eaten" means the user liked the dish, status "rejected" means the user disliked the dish, status "partial" means neutral or partly liked. Treat these as preference feedback, not literal eating amount.
 Special dietary constraints:
 ${specialDietPrompt}
 
@@ -1164,9 +1354,9 @@ History:
 ${JSON.stringify(history)}
 
 Provide:
-1. A summary of their eating habits (what they liked, what they rejected).
+1. A summary of their preference patterns (what they liked, disliked, or felt neutral about).
 2. Nutritional insights (are they getting enough variety?).
-3. Smart adjustments for future meals based on their rejections and acceptances.
+3. Smart adjustments for future meals based on liked and disliked dishes.
 4. Target-group-specific advice: infant reports must focus on texture and safety; adult reports should focus on balanced nutrition and routine; elderly reports should focus on digestibility, protein, calcium, fiber, hydration, and lower sodium.
 5. If special dietary constraints are present, include conservative food-focused adjustments without making medical claims.
 6. If cuisine and flavor preferences are present, suggest practical ways to keep variety while using common everyday ingredients.

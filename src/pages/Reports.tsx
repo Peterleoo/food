@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { generateReport } from '../services/ai';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { FileText, RefreshCw, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { FileText, RefreshCw, Heart, HeartOff, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -87,12 +87,12 @@ export default function Reports() {
 
       <div className="grid grid-cols-2 gap-4 mx-2">
         <div className="bg-white rounded-[28px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center text-center">
-          <CheckCircle2 className="text-[#34C759] mb-2" size={32} />
+          <Heart className="text-[#34C759] mb-2" size={32} />
           <p className="text-4xl font-bold text-black tracking-tight">{stats.eaten}</p>
           <p className="text-sm font-medium text-gray-400 uppercase tracking-wider mt-1">{t('mealsEaten')}</p>
         </div>
         <div className="bg-white rounded-[28px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center text-center">
-          <XCircle className="text-[#FF3B30] mb-2" size={32} />
+          <HeartOff className="text-[#FF3B30] mb-2" size={32} />
           <p className="text-4xl font-bold text-black tracking-tight">{stats.rejected}</p>
           <p className="text-sm font-medium text-gray-400 uppercase tracking-wider mt-1">{t('mealsRejected')}</p>
         </div>
