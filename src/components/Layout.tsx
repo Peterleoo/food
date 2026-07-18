@@ -1,44 +1,19 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Home, Heart, BarChart2, Settings as SettingsIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useLanguage } from '../contexts/LanguageContext';
 import { loadNavOrder, NAV_ORDER_CHANGE_EVENT, NAV_PATHS, TODAY_NAV_TOGGLE_EVENT, type NavItemKey } from '../navigation';
 
-function PageSkeleton() {
-  return (
-    <div className="page-skeleton pointer-events-none absolute inset-0 z-20 bg-[#F2F2F7] px-4 pt-4">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <div className="space-y-3 px-2">
-          <div className="h-8 w-40 rounded-2xl bg-gray-200/80" />
-          <div className="h-4 w-56 rounded-xl bg-gray-200/70" />
-        </div>
-        <div className="space-y-4 px-2">
-          {[0, 1, 2].map(item => (
-            <div key={item} className="rounded-[28px] bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <div className="flex items-center gap-4">
-                <div className="h-14 w-14 shrink-0 rounded-[18px] bg-gray-200/70" />
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="h-4 w-24 rounded-xl bg-gray-200/70" />
-                  <div className="h-5 w-3/4 rounded-xl bg-gray-200/80" />
-                  <div className="h-3 w-full rounded-xl bg-gray-100" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+type LayoutProps = {
+  children?: React.ReactNode;
+};
 
-export default function Layout() {
+export default function Layout({ children }: LayoutProps) {
   const { t } = useLanguage();
   const location = useLocation();
   const mainRef = useRef<HTMLElement | null>(null);
-  const previousPath = useRef(location.pathname);
   const [navOrder, setNavOrder] = useState<NavItemKey[]>(() => loadNavOrder());
-  const [isSwitchingPage, setIsSwitchingPage] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const navItems = {
@@ -47,18 +22,6 @@ export default function Layout() {
     reports: { to: NAV_PATHS.reports, label: t('navReports'), icon: BarChart2 },
     settings: { to: NAV_PATHS.settings, label: t('navSettings'), icon: SettingsIcon }
   };
-
-  useLayoutEffect(() => {
-    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (previousPath.current === location.pathname) return;
-    previousPath.current = location.pathname;
-    setIsSwitchingPage(true);
-    const timer = window.setTimeout(() => setIsSwitchingPage(false), 140);
-    return () => window.clearTimeout(timer);
-  }, [location.pathname]);
 
   useEffect(() => {
     const syncNavOrder = () => setNavOrder(loadNavOrder());
@@ -87,8 +50,7 @@ export default function Layout() {
   return (
     <div className="app-shell flex h-[100dvh] flex-col overflow-hidden bg-[#F2F2F7] text-black font-sans selection:bg-blue-200">
       <main ref={mainRef} className="app-main relative min-h-0 flex-1 overflow-y-auto p-4 pb-32">
-        <Outlet />
-        {isSwitchingPage && <PageSkeleton />}
+        {children ?? <Outlet />}
       </main>
 
       <nav className={clsx(

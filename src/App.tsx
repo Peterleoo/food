@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -15,6 +15,28 @@ import { getInitialNavPath } from './navigation';
 
 function InitialRoute() {
   return <Navigate to={getInitialNavPath()} replace />;
+}
+
+function KeepAlivePages() {
+  const location = useLocation();
+  const activePath = location.pathname;
+
+  return (
+    <Layout>
+      <section className={activePath === '/today' ? 'block' : 'hidden'} aria-hidden={activePath !== '/today'}>
+        <Home />
+      </section>
+      <section className={activePath === '/preferences' ? 'block' : 'hidden'} aria-hidden={activePath !== '/preferences'}>
+        <Preferences />
+      </section>
+      <section className={activePath === '/reports' ? 'block' : 'hidden'} aria-hidden={activePath !== '/reports'}>
+        <Reports />
+      </section>
+      <section className={activePath === '/settings' ? 'block' : 'hidden'} aria-hidden={activePath !== '/settings'}>
+        <Settings />
+      </section>
+    </Layout>
+  );
 }
 
 export default function App() {
@@ -38,14 +60,12 @@ export default function App() {
     <LanguageProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<InitialRoute />} />
-            <Route path="today" element={<Home />} />
-            <Route path="preferences" element={<Preferences />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
+          <Route path="/" element={<InitialRoute />} />
+          <Route path="/today" element={<KeepAlivePages />} />
+          <Route path="/preferences" element={<KeepAlivePages />} />
+          <Route path="/reports" element={<KeepAlivePages />} />
+          <Route path="/settings" element={<KeepAlivePages />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </LanguageProvider>
